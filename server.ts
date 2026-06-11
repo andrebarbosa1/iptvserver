@@ -275,7 +275,7 @@ app.post("/api/channels/import-m3u", (req, res) => {
   if (replaceExisting) {
     data.channels = channelsList;
   } else {
-    data.channels.push(...channelsList);
+    data.channels = data.channels.concat(channelsList);
   }
 
   saveData(data);
@@ -831,7 +831,7 @@ app.post("/api/channels/sync-url", async (req, res) => {
     if (replace) {
       data.channels = channelsList;
     } else {
-      data.channels.push(...channelsList);
+      data.channels = data.channels.concat(channelsList);
     }
     saveData(data);
     res.json({ message: "Sincronização efetuada com sucesso!", count: channelsList.length });
