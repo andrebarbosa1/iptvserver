@@ -1,0 +1,6 @@
+{
+  "name": "Gestor IPTV",
+  "description": "Sistema completo para administração de clientes, pacotes e listas de canais IPTV com geração dinâmica de listas no formato M3U.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
