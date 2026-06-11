@@ -67,7 +67,7 @@ function loadData(): StoreData {
       
       if (hasMockData) {
         const cleanData = { clients: [], channels: [], logs: [], whatsappTemplates: DEFAULT_WHATSAPP_TEMPLATES, transactions: [], resellers: [] };
-        fs.writeFileSync(DATA_FILE, JSON.stringify(cleanData, null, 2), "utf-8");
+        fs.writeFileSync(DATA_FILE, JSON.stringify(cleanData), "utf-8");
         return cleanData;
       }
 
@@ -103,7 +103,7 @@ function saveData(data: StoreData) {
       transactions: data.transactions || [],
       resellers: data.resellers || []
     };
-    fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave, null, 2), "utf-8");
+    fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave), "utf-8");
   } catch (err) {
     console.error("Error saving data.json", err);
   }
@@ -232,6 +232,7 @@ app.post("/api/channels/import-m3u", (req, res) => {
   const lines = m3uText.split(/\r?\n/);
   const channelsList: Channel[] = [];
   let currentMetadata: { name: string; logoUrl: string; category: string } | null = null;
+  let isTruncated = false;
 
   for (let line of lines) {
     line = line.trim();
@@ -250,6 +251,10 @@ app.post("/api/channels/import-m3u", (req, res) => {
 
       currentMetadata = { name, logoUrl, category };
     } else if (!line.startsWith("#") && currentMetadata) {
+      if (channelsList.length >= 15000) {
+        isTruncated = true;
+        break;
+      }
       channelsList.push({
         id: Math.random().toString(36).substring(2, 9) + "_" + Date.now().toString().slice(-4),
         name: currentMetadata.name,
@@ -279,7 +284,12 @@ app.post("/api/channels/import-m3u", (req, res) => {
   }
 
   saveData(data);
-  res.json({ message: `${channelsList.length} canais importados com sucesso!`, importedCount: channelsList.length });
+  
+  const msg = isTruncated 
+    ? `Importação concluída com limite de segurança! Foram importados 15.000 canais (a lista original possuía mais, porém foi truncada para garantir a velocidade e estabilidade do servidor).`
+    : `${channelsList.length} canais importados com sucesso!`;
+
+  res.json({ message: msg, importedCount: channelsList.length });
 });
 
 // Stats endpoint
@@ -789,6 +799,7 @@ app.post("/api/channels/sync-url", async (req, res) => {
     const lines = m3uText.split(/\r?\n/);
     const channelsList: Channel[] = [];
     let currentMetadata: { name: string; logoUrl: string; category: string } | null = null;
+    let isTruncated = false;
 
     for (let line of lines) {
       line = line.trim();
@@ -806,6 +817,10 @@ app.post("/api/channels/sync-url", async (req, res) => {
 
         currentMetadata = { name, logoUrl, category };
       } else if (!line.startsWith("#") && currentMetadata) {
+        if (channelsList.length >= 15000) {
+          isTruncated = true;
+          break;
+        }
         channelsList.push({
           id: Math.random().toString(36).substring(2, 9) + "_" + Date.now().toString().slice(-4),
           name: currentMetadata.name,
@@ -834,7 +849,12 @@ app.post("/api/channels/sync-url", async (req, res) => {
       data.channels = data.channels.concat(channelsList);
     }
     saveData(data);
-    res.json({ message: "Sincronização efetuada com sucesso!", count: channelsList.length });
+
+    const msg = isTruncated
+      ? `Sincronização concluída com limite de segurança! Foram importados 15.000 canais (a lista original possuía mais, porém foi truncada para garantir a velocidade e estabilidade do servidor).`
+      : `Sincronização efetuada com sucesso!`;
+
+    res.json({ message: msg, count: channelsList.length });
   } catch (err: any) {
     res.status(500).json({ error: `Erro de sincronização: ${err.message || String(err)}` });
   }

@@ -56,14 +56,24 @@ export default function M3USyncManager({ channels, onImportM3U }: M3USyncManager
         body: JSON.stringify({ url: syncUrl, replace: replaceExisting })
       });
 
-      const data = await res.json();
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        if (!res.ok) {
+          throw new Error(`Erro no servidor (${res.status}): A resposta não pôde ser analisada. Isso ocorre se a lista de canais for gigantesca ou se o provedor falhar.`);
+        }
+        throw new Error("Não foi possível analisar a resposta do servidor como JSON.");
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Algo deu errado durante a sincronização.");
       }
 
       setFeedback({
         type: "success",
-        text: `Sincronização concluída com sucesso! ${data.count} canais importados e sincronizados com os clientes.`
+        text: data.message || `Sincronização concluída com sucesso! ${data.count} canais importados e sincronizados.`
       });
       saveHistory(syncUrl, data.count, replaceExisting ? "replace" : "append");
     } catch (err: any) {

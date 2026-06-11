@@ -175,12 +175,21 @@ export default function App() {
       body: JSON.stringify({ m3u: m3uStr, replace })
     });
     
-    if (!res.ok) {
-      const errorObj = await res.json();
-      throw new Error(errorObj.error || "Formato M3U inválido ou erro no processador.");
+    const text = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      if (!res.ok) {
+        throw new Error(`Erro no servidor (${res.status}): A lista enviada pode ser muito pesada, gerando lentidão no servidor.`);
+      }
+      throw new Error("Erro de comunicação: resposta inválida do servidor.");
     }
 
-    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Formato M3U inválido ou erro no processador.");
+    }
+
     await fetchAllData();
     return data;
   };
