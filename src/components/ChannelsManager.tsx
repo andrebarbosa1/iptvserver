@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Tv, Film, Search, Plus, Trash, Edit, UploadCloud, Check, 
-  HelpCircle, AlertCircle, RefreshCw, Layers 
+  HelpCircle, AlertCircle, RefreshCw, Layers, ChevronLeft, ChevronRight 
 } from "lucide-react";
 import { Channel } from "../types";
 
@@ -132,6 +132,19 @@ export default function ChannelsManager({
     return matchesSearch && matchesCategory && matchesType;
   });
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
+  // Reset pagination on filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, typeFilter]);
+
+  const totalPages = Math.ceil(filteredChannels.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedChannels = filteredChannels.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="space-y-6">
       {/* Header operations */}
@@ -252,7 +265,7 @@ export default function ChannelsManager({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 text-sm text-slate-300">
-                {filteredChannels.map(ch => (
+                {paginatedChannels.map(ch => (
                   <tr key={ch.id} className="hover:bg-slate-800/40 transition">
                     <td className="py-3.5 px-5">
                       <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 p-1 flex items-center justify-center overflow-hidden">
@@ -325,6 +338,66 @@ export default function ChannelsManager({
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="bg-slate-900 px-5 py-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+              <div className="text-xs text-slate-400">
+                Exibindo <span className="font-semibold text-slate-200">{Math.min(filteredChannels.length, startIndex + 1)}</span> a{" "}
+                <span className="font-semibold text-slate-200">{Math.min(filteredChannels.length, startIndex + itemsPerPage)}</span> de{" "}
+                <span className="font-semibold text-slate-200">{filteredChannels.length}</span> canais
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  className="p-1.5 rounded bg-slate-850 border border-slate-850 hover:border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-slate-100 disabled:opacity-30 disabled:hover:bg-slate-850 cursor-pointer disabled:cursor-not-allowed transition"
+                  title="Página Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum = currentPage;
+                  if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  if (pageNum < 1 || pageNum > totalPages) return null;
+
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-xs rounded border font-semibold transition cursor-pointer ${
+                        currentPage === pageNum
+                          ? "bg-sky-500 border-sky-400 text-white"
+                          : "bg-slate-850 border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-slate-100"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  className="p-1.5 rounded bg-slate-850 border border-slate-850 hover:border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-slate-100 disabled:opacity-30 disabled:hover:bg-slate-850 cursor-pointer disabled:cursor-not-allowed transition"
+                  title="Próxima Página"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
