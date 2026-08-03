@@ -1,6 +1,6 @@
 {
-  "name": "Gestor IPTV",
-  "description": "Sistema completo para administração de clientes, pacotes e listas de canais IPTV com geração dinâmica de listas no formato M3U.",
+  "name": "StreamFlow M3U SaaS",
+  "description": "Sistema SaaS White Label para Gerenciamento de Streaming M3U, Painel Master, Clientes, Assinaturas, API REST JWT, Web Player e App Android",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

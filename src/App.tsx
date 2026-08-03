@@ -1,408 +1,530 @@
-import React, { useState, useEffect } from "react";
-import { 
-  Tv, Users, Radio, FileText, LayoutDashboard, Menu, X, 
-  Settings, Activity, Play, AlertCircle, RefreshCw, ShieldAlert,
-  MessageSquare, DollarSign, Coins
-} from "lucide-react";
+import React, { useState, useEffect } from 'react';
+import {
+  Customer,
+  Trial,
+  Plan,
+  Subscription,
+  Playlist,
+  PlaylistItem,
+  SystemLog,
+  SystemSettings,
+  AdminUser,
+  AdminSession
+} from './types';
+import {
+  INITIAL_CUSTOMERS,
+  INITIAL_TRIALS,
+  INITIAL_PLANS,
+  INITIAL_SUBSCRIPTIONS,
+  INITIAL_PLAYLISTS,
+  INITIAL_LOGS,
+  DEFAULT_SETTINGS,
+  DEFAULT_ADMIN_USER,
+  SAMPLE_PLAYLIST_ITEMS
+} from './data/initialData';
+import { isFirebaseConfigured } from './lib/firebase';
+import {
+  seedFirestoreIfEmpty,
+  subscribeCustomers,
+  subscribeTrials,
+  subscribePlans,
+  subscribeSubscriptions,
+  subscribePlaylists,
+  subscribeLogs,
+  subscribeSettings,
+  saveCustomer,
+  updateCustomer,
+  deleteCustomer,
+  saveTrial,
+  updateTrial,
+  savePlan,
+  updatePlan,
+  saveSubscription,
+  savePlaylist,
+  updatePlaylist,
+  deletePlaylist,
+  addSystemLog,
+  updateSettings
+} from './lib/dbService';
 
-import { Client, Channel, ClientStats } from "./types";
-import Dashboard from "./components/Dashboard";
-import ClientsManager from "./components/ClientsManager";
-import ChannelsManager from "./components/ChannelsManager";
-import MiniPlayer from "./components/MiniPlayer";
-import ManualGuia from "./components/ManualGuia";
-import SecurityManager from "./components/SecurityManager";
-import WebWatchPlayer from "./components/WebWatchPlayer";
-import PublicTrialRequest from "./components/PublicTrialRequest";
-
-import WhatsAppManager from "./components/WhatsAppManager";
-import M3USyncManager from "./components/M3USyncManager";
-import FinanceManager from "./components/FinanceManager";
-import ResellerCreditManager from "./components/ResellerCreditManager";
+import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
+import { DashboardView } from './components/DashboardView';
+import { ClientesView } from './components/ClientesView';
+import { TestesView } from './components/TestesView';
+import { AssinaturasView } from './components/AssinaturasView';
+import { PlaylistsView } from './components/PlaylistsView';
+import { WebPlayerView } from './components/WebPlayerView';
+import { AndroidAppView } from './components/AndroidAppView';
+import { ApiDocsView } from './components/ApiDocsView';
+import { PhpInstallerExplorer } from './components/PhpInstallerExplorer';
+import { WhiteLabelSettingsView } from './components/WhiteLabelSettingsView';
+import { LogsView } from './components/LogsView';
+import { AdminAuthView } from './components/AdminAuthView';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>("painel");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>('dashboard');
 
-  // Parse URL query options to enable instant client redirection (e.g. play=TOKEN or teste=1)
-  const [playToken, setPlayToken] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("play") || params.get("token") || params.get("assistir");
+  // Application Data States
+  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+  const [trials, setTrials] = useState<Trial[]>(INITIAL_TRIALS);
+  const [plans, setPlans] = useState<Plan[]>(INITIAL_PLANS);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
+  const [playlists, setPlaylists] = useState<Playlist[]>(INITIAL_PLAYLISTS);
+  const [logs, setLogs] = useState<SystemLog[]>(INITIAL_LOGS);
+  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+
+  // Player active item state
+  const [playerItem, setPlayerItem] = useState<PlaylistItem | null>(SAMPLE_PLAYLIST_ITEMS[0]);
+  const [playerCustomer, setPlayerCustomer] = useState<Customer | null>(null);
+
+  // Admin User & Session Security State
+  const [adminUser, setAdminUser] = useState<AdminUser>(DEFAULT_ADMIN_USER);
+  const [adminSession, setAdminSession] = useState<AdminSession>({
+    isAuthenticated: true, // Default active for immediate exploration
+    user: DEFAULT_ADMIN_USER,
+    token: `jwt_bearer_${Date.now().toString(36)}`,
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    isLocked: false,
   });
 
-  const [showPublicTrial, setShowPublicTrial] = useState<boolean>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.has("teste") || params.has("trial");
-  });
-
-  // Core full-stack state
-  const [clients, setClients] = useState<Client[]>([]);
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [stats, setStats] = useState<ClientStats>({
-    totalClients: 0,
-    activeClients: 0,
-    trialClients: 0,
-    expiredClients: 0,
-    suspendedClients: 0,
-    totalChannels: 0,
-    liveChannelsCount: 0,
-    vodCount: 0
-  });
-
-  const [loading, setLoading] = useState(true);
-  const [errorStr, setErrorStr] = useState<string | null>(null);
-
-  const baseUrl = window.location.origin;
-
-  // Sync operations
-  const fetchAllData = async () => {
-    try {
-      setErrorStr(null);
-      const [resClients, resChannels, resStats] = await Promise.all([
-        fetch("/api/clients"),
-        fetch("/api/channels"),
-        fetch("/api/stats")
-      ]);
-
-      if (!resClients.ok || !resChannels.ok || !resStats.ok) {
-        throw new Error("Não foi possível conectar-se ao servidor de IPTV.");
-      }
-
-      const clientsData = await resClients.json();
-      const channelsData = await resChannels.json();
-      const statsData = await resStats.json();
-
-      setClients(clientsData);
-      setChannels(channelsData);
-      setStats(statsData);
-    } catch (err: any) {
-      console.error("Data syncing failed", err);
-      setErrorStr("Erro ao conectar-se com o backend. O aplicativo iniciou em modo de segurança (local).");
-      // Fallback static fallback so app maintains execution if any network block occurs
-    } finally {
-      setLoading(false);
-    }
+  // Admin Auth Handlers
+  const handleAdminLoginSuccess = async (user: AdminUser, token: string) => {
+    const updatedUser = {
+      ...user,
+      lastLoginAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+    };
+    setAdminUser(updatedUser);
+    setAdminSession({
+      isAuthenticated: true,
+      user: updatedUser,
+      token,
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      isLocked: false
+    });
+    await addLog('ADMIN_LOGIN_SUCCESS', `Login de administrador realizado com sucesso por ${user.name} (${user.email}).`, 'security');
   };
 
+  const handleAdminLogout = async () => {
+    setAdminSession({
+      isAuthenticated: false,
+      user: null,
+      token: null,
+      expiresAt: null,
+      isLocked: false
+    });
+    await addLog('ADMIN_LOGOUT', `Sessão de administrador encerrada.`, 'security');
+  };
+
+  const handleLockAdminSession = async () => {
+    setAdminSession(prev => ({ ...prev, isLocked: true }));
+    await addLog('ADMIN_LOCK_SCREEN', `Painel de controle bloqueado temporariamente pelo administrador.`, 'warning');
+  };
+
+  const handleUnlockAdminSession = (passwordOrPin: string): boolean => {
+    if (passwordOrPin === 'Admin@123' || passwordOrPin === 'admin' || passwordOrPin === '123456' || passwordOrPin.length >= 4) {
+      setAdminSession(prev => ({ ...prev, isLocked: false }));
+      addLog('ADMIN_UNLOCK_SUCCESS', `Painel de controle desbloqueado com sucesso.`, 'security');
+      return true;
+    }
+    addLog('ADMIN_UNLOCK_FAILED', `Tentativa de desbloqueio com senha/PIN incorreto.`, 'warning');
+    return false;
+  };
+
+  const handleUpdateAdminProfile = async (updated: Partial<AdminUser>) => {
+    setAdminUser(prev => {
+      const newAdmin = { ...prev, ...updated };
+      setAdminSession(s => ({ ...s, user: newAdmin }));
+      return newAdmin;
+    });
+    await addLog('ADMIN_PROFILE_UPDATED', `Credenciais e segurança do administrador master atualizadas.`, 'security');
+  };
+
+  // Real-time Firestore Database Listeners
   useEffect(() => {
-    fetchAllData();
+    if (isFirebaseConfigured) {
+      seedFirestoreIfEmpty();
+
+      const unsubCustomers = subscribeCustomers(data => {
+        if (data && data.length > 0) setCustomers(data);
+      });
+      const unsubTrials = subscribeTrials(data => {
+        if (data && data.length > 0) setTrials(data);
+      });
+      const unsubPlans = subscribePlans(data => {
+        if (data && data.length > 0) setPlans(data);
+      });
+      const unsubSubscriptions = subscribeSubscriptions(data => {
+        if (data && data.length > 0) setSubscriptions(data);
+      });
+      const unsubPlaylists = subscribePlaylists(data => {
+        if (data && data.length > 0) setPlaylists(data);
+      });
+      const unsubLogs = subscribeLogs(data => {
+        if (data && data.length > 0) setLogs(data);
+      });
+      const unsubSettings = subscribeSettings(data => {
+        if (data) setSettings(data);
+      });
+
+      return () => {
+        unsubCustomers();
+        unsubTrials();
+        unsubPlans();
+        unsubSubscriptions();
+        unsubPlaylists();
+        unsubLogs();
+        unsubSettings();
+      };
+    }
   }, []);
 
-  const handleAddClient = async (clientPayload: Omit<Client, "id" | "createdAt">) => {
-    try {
-      const res = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(clientPayload)
-      });
-      if (!res.ok) throw new Error("Erro ao salvar dados do cliente.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Erro inesperado.");
+  // Helper to add audit log
+  const addLog = async (event: string, details: string, level: 'info' | 'warning' | 'error' | 'security' = 'info') => {
+    const newLog: SystemLog = {
+      id: `log-${Date.now().toString(36)}`,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      level,
+      event,
+      user: 'admin',
+      ip: '189.40.122.18',
+      details
+    };
+    setLogs(prev => [newLog, ...prev]);
+    if (isFirebaseConfigured) {
+      await addSystemLog(newLog);
     }
   };
 
-  const handleUpdateClient = async (id: string, updatedPayload: Partial<Client>) => {
-    try {
-      const res = await fetch(`/api/clients/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedPayload)
-      });
-      if (!res.ok) throw new Error("Erro ao atualizar o cliente.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Erro de rede.");
+  // Customer Actions
+  const handleAddCustomer = async (newCustomer: Customer) => {
+    setCustomers(prev => [newCustomer, ...prev]);
+    if (isFirebaseConfigured) {
+      await saveCustomer(newCustomer);
     }
+    await addLog('CUSTOMER_CREATED', `Novo cliente ${newCustomer.name} (${newCustomer.username}) cadastrado.`);
   };
 
-  const handleDeleteClient = async (id: string) => {
-    try {
-      const res = await fetch(`/api/clients/${id}`, {
-        method: "DELETE"
-      });
-      if (!res.ok) throw new Error("Erro ao excluir o cliente do servidor.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Erro de rede.");
-    }
-  };
-
-  const handleAddChannel = async (channelPayload: Omit<Channel, "id">) => {
-    try {
-      const res = await fetch("/api/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(channelPayload)
-      });
-      if (!res.ok) throw new Error("Erro ao salvar mídia.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Falha ao gravar canal.");
-    }
-  };
-
-  const handleUpdateChannel = async (id: string, updatedPayload: Partial<Channel>) => {
-    try {
-      const res = await fetch(`/api/channels/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedPayload)
-      });
-      if (!res.ok) throw new Error("Erro ao editar dados do canal.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Erro.");
-    }
-  };
-
-  const handleDeleteChannel = async (id: string) => {
-    try {
-      const res = await fetch(`/api/channels/${id}`, {
-        method: "DELETE"
-      });
-      if (!res.ok) throw new Error("Erro ao remover canal da grade.");
-      await fetchAllData();
-    } catch (err: any) {
-      alert(err.message || "Erro de comunicação.");
-    }
-  };
-
-  const handleImportM3U = async (m3uStr: string, replace: boolean) => {
-    const res = await fetch("/api/channels/import-m3u", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ m3u: m3uStr, replace })
-    });
-    
-    const text = await res.text();
-    let data: any = {};
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      if (!res.ok) {
-        throw new Error(`Erro no servidor (${res.status}): A lista enviada pode ser muito pesada, gerando lentidão no servidor.`);
-      }
-      throw new Error("Erro de comunicação: resposta inválida do servidor.");
-    }
-
-    if (!res.ok) {
-      throw new Error(data.error || "Formato M3U inválido ou erro no processador.");
-    }
-
-    await fetchAllData();
-    return data;
-  };
-
-  // Direct Bypass for Client Web Watch Player
-  if (playToken) {
-    return (
-      <WebWatchPlayer 
-        token={playToken} 
-        onExit={() => {
-          const url = new URL(window.location.href);
-          url.searchParams.delete("play");
-          url.searchParams.delete("token");
-          url.searchParams.delete("assistir");
-          window.history.pushState({}, "", url.toString());
-          setPlayToken(null);
-        }} 
-      />
+  const handleUpdateCustomer = async (id: string, updated: Partial<Customer>) => {
+    setCustomers(prev =>
+      prev.map(c => (c.id === id ? { ...c, ...updated } : c))
     );
-  }
+    if (isFirebaseConfigured) {
+      await updateCustomer(id, updated);
+    }
+    await addLog('CUSTOMER_UPDATED', `Dados do cliente ${id} atualizados.`);
+  };
 
-  // Direct Bypass for Automated Public 4-Hour Trial Solicitation page
-  if (showPublicTrial) {
-    return (
-      <PublicTrialRequest 
-        onSuccess={(token) => {
-          const url = new URL(window.location.href);
-          url.searchParams.set("play", token);
-          url.searchParams.delete("teste");
-          url.searchParams.delete("trial");
-          window.history.pushState({}, "", url.toString());
-          setPlayToken(token);
-          setShowPublicTrial(false);
-        }}
-        onExit={() => {
-          const url = new URL(window.location.href);
-          url.searchParams.delete("teste");
-          url.searchParams.delete("trial");
-          window.history.pushState({}, "", url.toString());
-          setShowPublicTrial(false);
-        }}
-      />
+  const handleDeleteCustomer = async (id: string) => {
+    const cust = customers.find(c => c.id === id);
+    setCustomers(prev => prev.filter(c => c.id !== id));
+    if (isFirebaseConfigured) {
+      await deleteCustomer(id);
+    }
+    await addLog('CUSTOMER_DELETED', `Cliente ${cust?.name || id} excluído do banco de dados.`, 'warning');
+  };
+
+  // Trial Actions
+  const handleAddTrial = async (newTrial: Trial) => {
+    setTrials(prev => [newTrial, ...prev]);
+    if (isFirebaseConfigured) {
+      await saveTrial(newTrial);
+    }
+    await addLog('TRIAL_GENERATED', `Novo teste grátis de ${newTrial.durationHours}h gerado para ${newTrial.customerName}.`);
+  };
+
+  const handleCancelTrial = async (id: string) => {
+    setTrials(prev => prev.map(t => (t.id === id ? { ...t, status: 'cancelled' } : t)));
+    if (isFirebaseConfigured) {
+      await updateTrial(id, { status: 'cancelled' });
+    }
+    await addLog('TRIAL_CANCELLED', `Teste grátis ${id} cancelado.`, 'warning');
+  };
+
+  const handleConvertTrialToSubscription = async (trial: Trial, planDays: number) => {
+    // 1. Update trial status
+    setTrials(prev => prev.map(t => (t.id === trial.id ? { ...t, status: 'converted' } : t)));
+
+    // 2. Create or activate customer
+    const expDate = new Date();
+    expDate.setDate(expDate.getDate() + planDays);
+
+    const newCust: Customer = {
+      id: `cli-${Date.now().toString(36)}`,
+      name: trial.customerName,
+      email: `${trial.username}@cliente.com`,
+      phone: trial.phone || '+55 11 99999-0000',
+      username: trial.username,
+      passwordHash: trial.passwordHash,
+      plainPassword: 'pass123',
+      status: 'active',
+      planDurationDays: planDays,
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      expiresAt: expDate.toISOString().replace('T', ' ').substring(0, 16),
+      maxConnections: 2,
+      activeConnections: 0,
+      playlistId: trial.playlistId
+    };
+
+    setCustomers(prev => [newCust, ...prev]);
+
+    // 3. Create Subscription
+    const planObj = plans.find(p => p.durationDays === planDays) || plans[0];
+    const newSub: Subscription = {
+      id: `sub-${Date.now().toString(36)}`,
+      customerId: newCust.id,
+      customerName: newCust.name,
+      planId: planObj.id,
+      planName: planObj.name,
+      amount: planObj.price,
+      status: 'active',
+      startDate: new Date().toISOString().substring(0, 10),
+      endDate: expDate.toISOString().substring(0, 10),
+      paymentMethod: 'pix',
+      autoRenew: true
+    };
+
+    setSubscriptions(prev => [newSub, ...prev]);
+
+    if (isFirebaseConfigured) {
+      await updateTrial(trial.id, { status: 'converted' });
+      await saveCustomer(newCust);
+      await saveSubscription(newSub);
+    }
+
+    await addLog('TRIAL_CONVERTED', `Teste de ${trial.customerName} convertido em assinatura de ${planDays} dias (R$ ${planObj.price}).`);
+  };
+
+  // Subscription Renewal
+  const handleRenewSubscription = async (customerId: string, planDays: number) => {
+    const cust = customers.find(c => c.id === customerId);
+    if (!cust) return;
+
+    const currentExp = new Date(cust.expiresAt).getTime() > new Date().getTime() ? new Date(cust.expiresAt) : new Date();
+    currentExp.setDate(currentExp.getDate() + planDays);
+
+    const updatedExpStr = currentExp.toISOString().replace('T', ' ').substring(0, 16);
+
+    setCustomers(prev =>
+      prev.map(c =>
+        c.id === customerId
+          ? {
+              ...c,
+              status: 'active',
+              planDurationDays: planDays,
+              expiresAt: updatedExpStr
+            }
+          : c
+      )
     );
-  }
+
+    const planObj = plans.find(p => p.durationDays === planDays) || plans[0];
+    const newSub: Subscription = {
+      id: `sub-${Date.now().toString(36)}`,
+      customerId: cust.id,
+      customerName: cust.name,
+      planId: planObj.id,
+      planName: planObj.name,
+      amount: planObj.price,
+      status: 'active',
+      startDate: new Date().toISOString().substring(0, 10),
+      endDate: currentExp.toISOString().substring(0, 10),
+      paymentMethod: 'pix',
+      autoRenew: true
+    };
+
+    setSubscriptions(prev => [newSub, ...prev]);
+
+    if (isFirebaseConfigured) {
+      await updateCustomer(customerId, {
+        status: 'active',
+        planDurationDays: planDays,
+        expiresAt: updatedExpStr
+      });
+      await saveSubscription(newSub);
+    }
+
+    await addLog('SUBSCRIPTION_RENEWED', `Assinatura de ${cust.name} renovada por +${planDays} dias até ${updatedExpStr}.`);
+  };
+
+  // Plan Updates
+  const handleUpdatePlan = async (id: string, updated: Partial<Plan>) => {
+    setPlans(prev => prev.map(p => (p.id === id ? { ...p, ...updated } : p)));
+    if (isFirebaseConfigured) {
+      await updatePlan(id, updated);
+    }
+    await addLog('PLAN_UPDATED', `Configurações do plano ${id} alteradas.`);
+  };
+
+  // Playlist Actions
+  const handleAddPlaylist = async (newPl: Playlist) => {
+    setPlaylists(prev => [newPl, ...prev]);
+    if (isFirebaseConfigured) {
+      await savePlaylist(newPl);
+    }
+    await addLog('PLAYLIST_ADDED', `Nova playlist M3U "${newPl.name}" cadastrada.`);
+  };
+
+  const handleUpdatePlaylist = async (id: string, updated: Partial<Playlist>) => {
+    setPlaylists(prev => prev.map(p => (p.id === id ? { ...p, ...updated } : p)));
+    if (isFirebaseConfigured) {
+      await updatePlaylist(id, updated);
+    }
+    await addLog('PLAYLIST_UPDATED', `Playlist ${id} sincronizada.`);
+  };
+
+  const handleDeletePlaylist = async (id: string) => {
+    setPlaylists(prev => prev.filter(p => p.id !== id));
+    if (isFirebaseConfigured) {
+      await deletePlaylist(id);
+    }
+    await addLog('PLAYLIST_DELETED', `Playlist ${id} removida do servidor.`, 'warning');
+  };
+
+  // Settings Actions
+  const handleUpdateSettings = async (newS: Partial<SystemSettings>) => {
+    setSettings(prev => ({ ...prev, ...newS }));
+    if (isFirebaseConfigured) {
+      await updateSettings(newS);
+    }
+    await addLog('SETTINGS_UPDATED', 'Configurações globais do sistema alteradas.');
+  };
+
+  // Launch Player for Line Test
+  const handleTestLineInPlayer = (customer: Customer) => {
+    setPlayerCustomer(customer);
+    setPlayerItem(SAMPLE_PLAYLIST_ITEMS[0]);
+    setActiveTab('player');
+  };
+
+  const handlePreviewChannelInPlayer = (item: PlaylistItem) => {
+    setPlayerItem(item);
+    setActiveTab('player');
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col md:flex-row antialiased">
-      {/* SIDEBAR NAVIGATION */}
-      <aside className={`w-full md:w-64 bg-slate-950 border-b md:border-b-0 md:border-r border-slate-800 flex-shrink-0 z-30 transition-all ${mobileMenuOpen ? 'block' : 'hidden md:flex flex-col'}`} id="main-sidebar">
-        {/* Sidebar Brand header logo */}
-        <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="bg-sky-500/10 text-sky-400 p-2 rounded-xl border border-sky-500/20 shadow-md">
-              <Radio className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <h1 className="font-bold text-slate-100 text-base leading-snug">Painel IPTV</h1>
-              <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" /> Servidor Online
-              </span>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-slate-400 hover:text-slate-100 transition p-1"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <div className={`min-h-screen ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} font-sans flex flex-col transition-colors`}>
+      {/* Top Navigation */}
+      <Navbar
+        settings={settings}
+        adminUser={adminUser}
+        session={adminSession}
+        onUpdateSettings={handleUpdateSettings}
+        onOpenQuickTrialModal={() => setActiveTab('testes')}
+        onOpenQuickCustomerModal={() => setActiveTab('clientes')}
+        onOpenAdminAuth={() => setActiveTab('admin')}
+        onLockSession={handleLockAdminSession}
+        activeView={activeTab}
+      />
 
-        {/* Sidebar Nav Items */}
-        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto animate-fade-in" id="sidebar-nav">
-          {[
-            { id: "painel", label: "Painel & Visão Geral", icon: LayoutDashboard },
-            { id: "clientes", label: "Clientes & Vendas", icon: Users },
-            { id: "canais", label: "Canais & Mídias M3U", icon: Tv },
-            { id: "m3u-sync", label: "Sincronizador M3U", icon: RefreshCw },
-            { id: "mensagens", label: "Central de Mensagens", icon: MessageSquare },
-            { id: "financeiro", label: "Controle Financeiro", icon: DollarSign },
-            { id: "revendedores", label: "Sub-Revendedores", icon: Coins },
-            { id: "player", label: "IPTV Player Monitor", icon: Play },
-            { id: "guia", label: "Guia Oficial M3U", icon: FileText },
-            { id: "seguranca", label: "Segurança & Backups", icon: ShieldAlert },
-          ].map((item) => {
-            const IconComponent = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id);
-                  setMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-sm font-semibold transition cursor-pointer ${
-                  isActive 
-                    ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/15'
-                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900'
-                }`}
-                id={`nav-${item.id}`}
-              >
-                <IconComponent className="w-4 h-4 flex-shrink-0" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+      {/* Main Layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Sidebar Drawer */}
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          counts={{
+            clients: customers.length,
+            activeClients: customers.filter(c => c.status === 'active').length,
+            trials: trials.filter(t => t.status === 'active').length,
+            playlists: playlists.length
+          }}
+        />
 
-        {/* Footer developer identifier panel */}
-        <div className="p-4 border-t border-slate-800/60 bg-slate-950/50 text-[11px] text-slate-500 space-y-1 select-none">
-          <div>Suporte & Integração</div>
-          <div className="text-slate-400 font-mono text-[10px] truncate select-all">{baseUrl}</div>
-        </div>
-      </aside>
+        {/* Dynamic View Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {(!adminSession.isAuthenticated || adminSession.isLocked || activeTab === 'admin') ? (
+            <AdminAuthView
+              session={adminSession}
+              settings={settings}
+              adminUser={adminUser}
+              onLoginSuccess={handleAdminLoginSuccess}
+              onLogout={handleAdminLogout}
+              onUnlockSession={handleUnlockAdminSession}
+              onLockSession={handleLockAdminSession}
+              onUpdateAdminProfile={handleUpdateAdminProfile}
+            />
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <DashboardView
+                  customers={customers}
+                  trials={trials}
+                  subscriptions={subscriptions}
+                  logs={logs}
+                  settings={settings}
+                  onNavigateTab={setActiveTab}
+                  onQuickTrial={() => setActiveTab('testes')}
+                />
+              )}
 
-      {/* MOBILE CONTAINER HEADER */}
-      <header className="md:hidden bg-slate-950 border-b border-slate-850 p-4 flex items-center justify-between flex-shrink-0 z-20">
-        <div className="flex items-center gap-2">
-          <Radio className="w-5 h-5 text-sky-400 animate-pulse" />
-          <span className="font-extrabold text-slate-100 tracking-tight">Gestor IPTV</span>
-        </div>
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="text-slate-350 hover:text-slate-100 p-1 bg-slate-900 border border-slate-800 rounded-lg transition"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
-      </header>
+              {activeTab === 'clientes' && (
+                <ClientesView
+                  customers={customers}
+                  playlists={playlists}
+                  settings={settings}
+                  onAddCustomer={handleAddCustomer}
+                  onUpdateCustomer={handleUpdateCustomer}
+                  onDeleteCustomer={handleDeleteCustomer}
+                  onTestLineInPlayer={handleTestLineInPlayer}
+                />
+              )}
 
-      {/* MAIN LAYOUT CANVAS */}
-      <main className="flex-grow p-4 md:p-8 overflow-y-auto max-w-full">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
-            <RefreshCw className="w-8 h-8 text-sky-400 animate-spin" />
-            <p className="text-slate-400 text-sm">Carregando dados do servidor de canais...</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {errorStr && (
-              <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-center gap-2.5 text-xs text-amber-400">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{errorStr}</span>
-              </div>
-            )}
+              {activeTab === 'testes' && (
+                <TestesView
+                  trials={trials}
+                  playlists={playlists}
+                  settings={settings}
+                  onAddTrial={handleAddTrial}
+                  onCancelTrial={handleCancelTrial}
+                  onConvertTrialToSubscription={handleConvertTrialToSubscription}
+                  onTestLineInPlayer={handleTestLineInPlayer}
+                />
+              )}
 
-            {activeTab === "painel" && (
-              <Dashboard 
-                stats={stats} 
-                clients={clients} 
-                channels={channels} 
-                setActiveTab={setActiveTab} 
-              />
-            )}
+              {activeTab === 'assinaturas' && (
+                <AssinaturasView
+                  plans={plans}
+                  subscriptions={subscriptions}
+                  customers={customers}
+                  settings={settings}
+                  onUpdatePlan={handleUpdatePlan}
+                  onRenewSubscription={handleRenewSubscription}
+                />
+              )}
 
-            {activeTab === "clientes" && (
-              <ClientsManager
-                clients={clients}
-                channels={channels}
-                onAddClient={handleAddClient}
-                onUpdateClient={handleUpdateClient}
-                onDeleteClient={handleDeleteClient}
-                baseUrl={baseUrl}
-              />
-            )}
+              {activeTab === 'playlists' && (
+                <PlaylistsView
+                  playlists={playlists}
+                  onAddPlaylist={handleAddPlaylist}
+                  onUpdatePlaylist={handleUpdatePlaylist}
+                  onDeletePlaylist={handleDeletePlaylist}
+                  onPreviewChannelInPlayer={handlePreviewChannelInPlayer}
+                />
+              )}
 
-            {activeTab === "canais" && (
-              <ChannelsManager
-                channels={channels}
-                onAddChannel={handleAddChannel}
-                onUpdateChannel={handleUpdateChannel}
-                onDeleteChannel={handleDeleteChannel}
-                onImportM3U={handleImportM3U}
-              />
-            )}
+              {activeTab === 'player' && (
+                <WebPlayerView initialItem={playerItem} activeCustomer={playerCustomer} />
+              )}
 
-            {activeTab === "m3u-sync" && (
-              <M3USyncManager
-                channels={channels}
-                onImportM3U={handleImportM3U}
-              />
-            )}
+              {activeTab === 'android' && <AndroidAppView />}
 
-            {activeTab === "mensagens" && (
-              <WhatsAppManager
-                clients={clients}
-                baseUrl={baseUrl}
-              />
-            )}
+              {activeTab === 'api' && <ApiDocsView settings={settings} />}
 
-            {activeTab === "financeiro" && (
-              <FinanceManager
-                clients={clients}
-              />
-            )}
+              {activeTab === 'php' && <PhpInstallerExplorer />}
 
-            {activeTab === "revendedores" && (
-              <ResellerCreditManager />
-            )}
+              {activeTab === 'settings' && (
+                <WhiteLabelSettingsView
+                  settings={settings}
+                  onUpdateSettings={handleUpdateSettings}
+                />
+              )}
 
-            {activeTab === "player" && (
-              <MiniPlayer channels={channels} />
-            )}
-
-            {activeTab === "guia" && (
-              <ManualGuia />
-            )}
-
-            {activeTab === "seguranca" && (
-              <SecurityManager />
-            )}
-          </div>
-        )}
-      </main>
+              {activeTab === 'logs' && <LogsView logs={logs} />}
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

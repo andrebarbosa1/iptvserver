@@ -1,0 +1,134 @@
+{
+  "entities": {
+    "customers": {
+      "title": "Customer",
+      "description": "Clientes do sistema IPTV/OTT",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "username": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "plainPassword": { "type": "string" },
+        "status": { "type": "string" },
+        "planDurationDays": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "maxConnections": { "type": "number" },
+        "activeConnections": { "type": "number" },
+        "playlistId": { "type": "string" },
+        "notes": { "type": "string" },
+        "lastLogin": { "type": "string" }
+      },
+      "required": ["name", "username", "status"]
+    },
+    "trials": {
+      "title": "Trial",
+      "description": "Testes grátis temporários",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "username": { "type": "string" },
+        "passwordHash": { "type": "string" },
+        "durationHours": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "status": { "type": "string" },
+        "playlistId": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["customerName", "username", "status"]
+    },
+    "plans": {
+      "title": "Plan",
+      "description": "Planos de assinatura",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "durationDays": { "type": "number" },
+        "price": { "type": "number" },
+        "maxConnections": { "type": "number" },
+        "description": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "durationDays", "price"]
+    },
+    "subscriptions": {
+      "title": "Subscription",
+      "description": "Histórico de Assinaturas e faturamento",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "autoRenew": { "type": "boolean" }
+      },
+      "required": ["customerId", "planId", "amount"]
+    },
+    "playlists": {
+      "title": "Playlist",
+      "description": "Listas de reprodução M3U e canais",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "m3uUrl": { "type": "string" },
+        "category": { "type": "string" },
+        "itemCount": { "type": "number" },
+        "lastUpdated": { "type": "string" },
+        "status": { "type": "string" },
+        "autoUpdate": { "type": "boolean" },
+        "updateIntervalHours": { "type": "number" }
+      },
+      "required": ["name", "m3uUrl"]
+    },
+    "logs": {
+      "title": "SystemLog",
+      "description": "Logs de auditoria e segurança",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "level": { "type": "string" },
+        "event": { "type": "string" },
+        "user": { "type": "string" },
+        "ip": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["event", "timestamp"]
+    },
+    "settings": {
+      "title": "SystemSettings",
+      "description": "Configurações White Label",
+      "properties": {
+        "brandName": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "primaryColor": { "type": "string" },
+        "dnsServerUrl": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "supportTelegram": { "type": "string" },
+        "currency": { "type": "string" },
+        "autoBlockExpired": { "type": "boolean" },
+        "rateLimitPerMin": { "type": "number" },
+        "jwtSecret": { "type": "string" },
+        "enableCsrf": { "type": "boolean" },
+        "theme": { "type": "string" }
+      },
+      "required": ["brandName"]
+    }
+  },
+  "securityRules": {
+    "customers": "allow read, write: if true;",
+    "trials": "allow read, write: if true;",
+    "plans": "allow read, write: if true;",
+    "subscriptions": "allow read, write: if true;",
+    "playlists": "allow read, write: if true;",
+    "logs": "allow read, write: if true;",
+    "settings": "allow read, write: if true;"
+  }
+}
