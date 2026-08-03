@@ -582,7 +582,7 @@ export default function App() {
               )}
 
               {activeTab === 'player' && (
-                <WebPlayerView initialItem={playerItem} activeCustomer={playerCustomer} />
+                <WebPlayerView initialItem={playerItem} activeCustomer={playerCustomer} playlists={playlists} />
               )}
 
               {activeTab === 'android' && <AndroidAppView />}
