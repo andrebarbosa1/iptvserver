@@ -9,6 +9,7 @@ interface PlaylistsViewProps {
   onUpdatePlaylist: (id: string, updated: Partial<Playlist>) => void;
   onDeletePlaylist: (id: string) => void;
   onPreviewChannelInPlayer: (item: PlaylistItem) => void;
+  onClearAllPlaylists?: () => void;
 }
 
 export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
@@ -16,11 +17,24 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
   onAddPlaylist,
   onUpdatePlaylist,
   onDeletePlaylist,
-  onPreviewChannelInPlayer
+  onPreviewChannelInPlayer,
+  onClearAllPlaylists
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddChannelModalOpen, setIsAddChannelModalOpen] = useState(false);
+  const [isConfirmWipeOpen, setIsConfirmWipeOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(playlists[0] || null);
+
+  // Keep selected playlist in sync if playlists change or empty
+  React.useEffect(() => {
+    if (playlists.length > 0) {
+      if (!selectedPlaylist || !playlists.find(p => p.id === selectedPlaylist.id)) {
+        setSelectedPlaylist(playlists[0]);
+      }
+    } else {
+      setSelectedPlaylist(null);
+    }
+  }, [playlists]);
   const [channelSearch, setChannelSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [recentlyAddedChannelName, setRecentlyAddedChannelName] = useState<string | null>(null);
@@ -198,52 +212,99 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all"
-        >
-          <Plus className="w-4 h-4" /> Importar Lista M3U
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {onClearAllPlaylists && playlists.length > 0 && (
+            <button
+              onClick={() => setIsConfirmWipeOpen(true)}
+              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" /> Zerar Playlists
+            </button>
+          )}
+
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all"
+          >
+            <Plus className="w-4 h-4" /> Importar Lista M3U
+          </button>
+        </div>
       </div>
 
       {/* Grid: Playlist Cards + Channel Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Playlists Sidebar Cards */}
         <div className="space-y-4">
-          <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Listas M3U Cadastradas</h2>
-          {playlists.map(pl => {
-            const isSelected = selectedPlaylist?.id === pl.id;
-            return (
-              <div
-                key={pl.id}
-                onClick={() => setSelectedPlaylist(pl)}
-                className={`p-4 rounded-2xl border cursor-pointer transition-all ${
-                  isSelected
-                    ? 'bg-indigo-600/15 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
-                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                    {pl.category}
-                  </span>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-                    <CheckCircle className="w-3 h-3" /> Ativa
-                  </span>
-                </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Listas M3U Cadastradas</h2>
+            <span className="text-xs text-slate-400 font-bold">{playlists.length} lista(s)</span>
+          </div>
 
-                <h3 className="text-base font-bold text-white">{pl.name}</h3>
-                <code className="block text-[10px] text-slate-400 mt-1 truncate bg-slate-950 p-1.5 rounded font-mono">
-                  {pl.m3uUrl}
-                </code>
-
-                <div className="flex items-center justify-between mt-3 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
-                  <span>{pl.itemCount} canais/VODs</span>
-                  <span className="text-[10px]">Atualizado: {pl.lastUpdated}</span>
-                </div>
+          {playlists.length === 0 ? (
+            <div className="p-6 bg-slate-900/60 rounded-2xl border border-slate-800 text-center space-y-3">
+              <div className="w-10 h-10 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                <ListVideo className="w-5 h-5" />
               </div>
-            );
-          })}
+              <div className="text-xs font-bold text-white">Nenhuma Playlist M3U</div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Sua base de playlists está zerada. Cadastre novas listas M3U/M3U8 para gerenciar os canais.
+              </p>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-xl"
+              >
+                + Criar / Importar Lista
+              </button>
+            </div>
+          ) : (
+            playlists.map(pl => {
+              const isSelected = selectedPlaylist?.id === pl.id;
+              return (
+                <div
+                  key={pl.id}
+                  onClick={() => setSelectedPlaylist(pl)}
+                  className={`p-4 rounded-2xl border cursor-pointer transition-all relative group ${
+                    isSelected
+                      ? 'bg-indigo-600/15 border-indigo-500/50 shadow-lg shadow-indigo-500/10'
+                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                      {pl.category}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                        <CheckCircle className="w-3 h-3" /> Ativa
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Excluir a playlist "${pl.name}"?`)) {
+                            onDeletePlaylist(pl.id);
+                          }
+                        }}
+                        title="Excluir Playlist"
+                        className="text-slate-500 hover:text-rose-400 p-1 rounded hover:bg-rose-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <h3 className="text-base font-bold text-white">{pl.name}</h3>
+                  <code className="block text-[10px] text-slate-400 mt-1 truncate bg-slate-950 p-1.5 rounded font-mono">
+                    {pl.m3uUrl}
+                  </code>
+
+                  <div className="flex items-center justify-between mt-3 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+                    <span>{pl.itemCount} canais/VODs</span>
+                    <span className="text-[10px]">Atualizado: {pl.lastUpdated}</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Selected Playlist Content & Channels Table */}
@@ -632,6 +693,47 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Wipe Playlists Confirmation Modal */}
+      {isConfirmWipeOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Zerar Todas as Playlists M3U/M3U8?</h2>
+                <p className="text-xs text-slate-400">Esta ação excluirá todas as listas cadastradas</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Você está prestes a remover todas as listas M3U demonstrativas do sistema para cadastrar suas próprias listas de canais e VODs do zero.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setIsConfirmWipeOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onClearAllPlaylists) {
+                    onClearAllPlaylists();
+                  }
+                  setIsConfirmWipeOpen(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20"
+              >
+                Sim, Zerar Todas as Playlists
+              </button>
+            </div>
           </div>
         </div>
       )}

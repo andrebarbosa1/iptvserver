@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
@@ -62,6 +63,12 @@ function sanitizeDataForFirestore<T>(data: T): T {
 // Seed initial data if database is empty
 export async function seedFirestoreIfEmpty() {
   try {
+    const settingsSnap = await getDoc(doc(db, COLLECTIONS.SETTINGS, 'global'));
+    if (settingsSnap.exists()) {
+      console.log('Firestore already initialized (settings document exists). Skipping seeding.');
+      return;
+    }
+
     const custSnap = await getDocs(collection(db, COLLECTIONS.CUSTOMERS));
     if (!custSnap.empty) {
       console.log('Firestore already contains data.');
@@ -95,7 +102,10 @@ export async function seedFirestoreIfEmpty() {
       batch.set(doc(db, COLLECTIONS.LOGS, log.id), sanitizeDataForFirestore(log));
     });
 
-    batch.set(doc(db, COLLECTIONS.SETTINGS, 'global'), sanitizeDataForFirestore(DEFAULT_SETTINGS));
+    batch.set(doc(db, COLLECTIONS.SETTINGS, 'global'), sanitizeDataForFirestore({
+      ...DEFAULT_SETTINGS,
+      isInitialized: true
+    }));
 
     await batch.commit();
     console.log('Firestore successfully seeded!');
@@ -261,5 +271,17 @@ export async function clearAllCustomerData(includePlaylists = false) {
     console.log('All customer data successfully wiped from Firestore.');
   } catch (err) {
     console.error('Error clearing customer data from Firestore:', err);
+  }
+}
+
+export async function deleteAllPlaylists() {
+  try {
+    const plSnap = await getDocs(collection(db, COLLECTIONS.PLAYLISTS));
+    const batch = writeBatch(db);
+    plSnap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    console.log('All playlists wiped from Firestore.');
+  } catch (err) {
+    console.error('Error wiping playlists from Firestore:', err);
   }
 }

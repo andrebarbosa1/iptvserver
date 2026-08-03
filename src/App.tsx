@@ -62,17 +62,32 @@ import { WhiteLabelSettingsView } from './components/WhiteLabelSettingsView';
 import { LogsView } from './components/LogsView';
 import { AdminAuthView } from './components/AdminAuthView';
 
+const loadSavedData = <T,>(key: string, fallback: T): T => {
+  try {
+    const isInitialized = localStorage.getItem('streamflow_initialized');
+    if (isInitialized === 'true') {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) {
+        return JSON.parse(saved);
+      }
+    }
+  } catch (e) {
+    console.error('Error loading localStorage:', key, e);
+  }
+  return fallback;
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
-  // Application Data States
-  const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
-  const [trials, setTrials] = useState<Trial[]>(INITIAL_TRIALS);
-  const [plans, setPlans] = useState<Plan[]>(INITIAL_PLANS);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
-  const [playlists, setPlaylists] = useState<Playlist[]>(INITIAL_PLAYLISTS);
-  const [logs, setLogs] = useState<SystemLog[]>(INITIAL_LOGS);
-  const [settings, setSettings] = useState<SystemSettings>(DEFAULT_SETTINGS);
+  // Application Data States (Loads from localStorage if user wiped/modified or default mock data on 1st run)
+  const [customers, setCustomers] = useState<Customer[]>(() => loadSavedData('streamflow_customers', INITIAL_CUSTOMERS));
+  const [trials, setTrials] = useState<Trial[]>(() => loadSavedData('streamflow_trials', INITIAL_TRIALS));
+  const [plans, setPlans] = useState<Plan[]>(() => loadSavedData('streamflow_plans', INITIAL_PLANS));
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => loadSavedData('streamflow_subscriptions', INITIAL_SUBSCRIPTIONS));
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => loadSavedData('streamflow_playlists', INITIAL_PLAYLISTS));
+  const [logs, setLogs] = useState<SystemLog[]>(() => loadSavedData('streamflow_logs', INITIAL_LOGS));
+  const [settings, setSettings] = useState<SystemSettings>(() => loadSavedData('streamflow_settings', DEFAULT_SETTINGS));
 
   // Player active item state
   const [playerItem, setPlayerItem] = useState<PlaylistItem | null>(SAMPLE_PLAYLIST_ITEMS[0]);
@@ -179,14 +194,48 @@ export default function App() {
     }
   }, []);
 
+  // LocalStorage Auto-save effects to persist data state in browser/Vercel sessions
+  useEffect(() => {
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_customers', JSON.stringify(customers));
+  }, [customers]);
+
+  useEffect(() => {
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_trials', JSON.stringify(trials));
+  }, [trials]);
+
+  useEffect(() => {
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_subscriptions', JSON.stringify(subscriptions));
+  }, [subscriptions]);
+
+  useEffect(() => {
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_playlists', JSON.stringify(playlists));
+  }, [playlists]);
+
+  useEffect(() => {
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_settings', JSON.stringify(settings));
+  }, [settings]);
+
   // Action to clear all customer data (Wipe system for fresh start)
   const handleClearAllData = async (includePlaylists = false) => {
     setCustomers([]);
     setTrials([]);
     setSubscriptions([]);
+
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_customers', '[]');
+    localStorage.setItem('streamflow_trials', '[]');
+    localStorage.setItem('streamflow_subscriptions', '[]');
+
     if (includePlaylists) {
       setPlaylists([]);
+      localStorage.setItem('streamflow_playlists', '[]');
     }
+
     if (isFirebaseConfigured) {
       const { clearAllCustomerData } = await import('./lib/dbService');
       await clearAllCustomerData(includePlaylists);
@@ -396,6 +445,18 @@ export default function App() {
     await addLog('PLAYLIST_DELETED', `Playlist ${id} removida do servidor.`, 'warning');
   };
 
+  const handleClearAllPlaylists = async () => {
+    setPlaylists([]);
+    localStorage.setItem('streamflow_initialized', 'true');
+    localStorage.setItem('streamflow_playlists', '[]');
+
+    if (isFirebaseConfigured) {
+      const { deleteAllPlaylists } = await import('./lib/dbService');
+      await deleteAllPlaylists();
+    }
+    await addLog('PLAYLISTS_RESET', 'Todas as playlists M3U/M3U8 foram zeradas pelo administrador.', 'warning');
+  };
+
   // Settings Actions
   const handleUpdateSettings = async (newS: Partial<SystemSettings>) => {
     setSettings(prev => ({ ...prev, ...newS }));
@@ -516,6 +577,7 @@ export default function App() {
                   onUpdatePlaylist={handleUpdatePlaylist}
                   onDeletePlaylist={handleDeletePlaylist}
                   onPreviewChannelInPlayer={handlePreviewChannelInPlayer}
+                  onClearAllPlaylists={handleClearAllPlaylists}
                 />
               )}
 
