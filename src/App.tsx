@@ -146,22 +146,22 @@ export default function App() {
       seedFirestoreIfEmpty();
 
       const unsubCustomers = subscribeCustomers(data => {
-        if (data && data.length > 0) setCustomers(data);
+        if (data) setCustomers(data);
       });
       const unsubTrials = subscribeTrials(data => {
-        if (data && data.length > 0) setTrials(data);
+        if (data) setTrials(data);
       });
       const unsubPlans = subscribePlans(data => {
         if (data && data.length > 0) setPlans(data);
       });
       const unsubSubscriptions = subscribeSubscriptions(data => {
-        if (data && data.length > 0) setSubscriptions(data);
+        if (data) setSubscriptions(data);
       });
       const unsubPlaylists = subscribePlaylists(data => {
-        if (data && data.length > 0) setPlaylists(data);
+        if (data) setPlaylists(data);
       });
       const unsubLogs = subscribeLogs(data => {
-        if (data && data.length > 0) setLogs(data);
+        if (data) setLogs(data);
       });
       const unsubSettings = subscribeSettings(data => {
         if (data) setSettings(data);
@@ -178,6 +178,21 @@ export default function App() {
       };
     }
   }, []);
+
+  // Action to clear all customer data (Wipe system for fresh start)
+  const handleClearAllData = async (includePlaylists = false) => {
+    setCustomers([]);
+    setTrials([]);
+    setSubscriptions([]);
+    if (includePlaylists) {
+      setPlaylists([]);
+    }
+    if (isFirebaseConfigured) {
+      const { clearAllCustomerData } = await import('./lib/dbService');
+      await clearAllCustomerData(includePlaylists);
+    }
+    await addLog('SYSTEM_DATA_RESET', `Base de dados de clientes, testes e assinaturas foi zerada com sucesso pelo administrador.`, 'warning');
+  };
 
   // Helper to add audit log
   const addLog = async (event: string, details: string, level: 'info' | 'warning' | 'error' | 'security' = 'info') => {
@@ -467,6 +482,7 @@ export default function App() {
                   onUpdateCustomer={handleUpdateCustomer}
                   onDeleteCustomer={handleDeleteCustomer}
                   onTestLineInPlayer={handleTestLineInPlayer}
+                  onClearAllData={handleClearAllData}
                 />
               )}
 
@@ -517,6 +533,7 @@ export default function App() {
                 <WhiteLabelSettingsView
                   settings={settings}
                   onUpdateSettings={handleUpdateSettings}
+                  onClearAllData={handleClearAllData}
                 />
               )}
 

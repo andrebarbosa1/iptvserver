@@ -237,3 +237,29 @@ export async function addSystemLog(log: SystemLog) {
 export async function updateSettings(settings: Partial<SystemSettings>) {
   await setDoc(doc(db, COLLECTIONS.SETTINGS, 'global'), sanitizeDataForFirestore(settings), { merge: true });
 }
+
+export async function clearAllCustomerData(includePlaylists = false) {
+  try {
+    const custSnap = await getDocs(collection(db, COLLECTIONS.CUSTOMERS));
+    const trialSnap = await getDocs(collection(db, COLLECTIONS.TRIALS));
+    const subSnap = await getDocs(collection(db, COLLECTIONS.SUBSCRIPTIONS));
+    const logSnap = await getDocs(collection(db, COLLECTIONS.LOGS));
+
+    const batch = writeBatch(db);
+
+    custSnap.docs.forEach(d => batch.delete(d.ref));
+    trialSnap.docs.forEach(d => batch.delete(d.ref));
+    subSnap.docs.forEach(d => batch.delete(d.ref));
+    logSnap.docs.forEach(d => batch.delete(d.ref));
+
+    if (includePlaylists) {
+      const plSnap = await getDocs(collection(db, COLLECTIONS.PLAYLISTS));
+      plSnap.docs.forEach(d => batch.delete(d.ref));
+    }
+
+    await batch.commit();
+    console.log('All customer data successfully wiped from Firestore.');
+  } catch (err) {
+    console.error('Error clearing customer data from Firestore:', err);
+  }
+}

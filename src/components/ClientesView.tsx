@@ -10,6 +10,7 @@ interface ClientesViewProps {
   onUpdateCustomer: (id: string, updated: Partial<Customer>) => void;
   onDeleteCustomer: (id: string) => void;
   onTestLineInPlayer: (customer: Customer) => void;
+  onClearAllData?: (includePlaylists?: boolean) => void;
 }
 
 export const ClientesView: React.FC<ClientesViewProps> = ({
@@ -20,6 +21,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
   onUpdateCustomer,
   onDeleteCustomer,
   onTestLineInPlayer,
+  onClearAllData
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -27,6 +29,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [selectedM3uCustomer, setSelectedM3uCustomer] = useState<Customer | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isConfirmClearOpen, setIsConfirmClearOpen] = useState(false);
 
   // New Customer Form State
   const [formName, setFormName] = useState('');
@@ -157,12 +160,23 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" /> Cadastrar Novo Cliente
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {onClearAllData && customers.length > 0 && (
+            <button
+              onClick={() => setIsConfirmClearOpen(true)}
+              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4 text-rose-400" /> Zerar Base de Clientes
+            </button>
+          )}
+
+          <button
+            onClick={openAddModal}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all"
+          >
+            <Plus className="w-4 h-4" /> Cadastrar Novo Cliente
+          </button>
+        </div>
       </div>
 
       {/* Search & Status Filter Controls */}
@@ -539,6 +553,54 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* Wipe / Clear Data Confirmation Modal */}
+      {isConfirmClearOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white">Zerar Todos os Clientes e Testes?</h2>
+                <p className="text-xs text-slate-400">Esta ação é irreversível</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Você está prestes a apagar todos os clientes demonstrativos, testes e assinaturas do sistema para começar a cadastrar seus próprios dados reais.
+            </p>
+
+            <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs text-slate-300 space-y-1">
+              <div>✓ Apaga todos os clientes de teste</div>
+              <div>✓ Apaga os logs e históricos anteriores</div>
+              <div>✓ Permite que você crie seus novos clientes com o DNS <strong className="text-indigo-300">https://play.streamflow.com</strong></div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setIsConfirmClearOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (onClearAllData) {
+                    onClearAllData(false);
+                  }
+                  setIsConfirmClearOpen(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-lg shadow-rose-600/20"
+              >
+                Sim, Zerar Todos os Clientes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
