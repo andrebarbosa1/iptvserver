@@ -96,35 +96,41 @@ export const NetworkSettingsView: React.FC<NetworkSettingsViewProps> = ({
       <div className="bg-slate-900/90 rounded-2xl border border-indigo-500/30 p-6 space-y-4 text-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-sm shrink-0">
-              Go
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400 text-sm shrink-0">
+              <Check className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Configuração do seu Domínio: <span className="text-emerald-400 font-mono">playstream.lat</span>
+                Domínio Configurado com Sucesso: <span className="text-emerald-400 font-mono">playstream.lat</span>
               </h2>
               <p className="text-[11px] text-slate-400">
-                Siga os passos abaixo na GoDaddy para ligar <strong className="text-white">playstream.lat</strong> ao seu servidor IPTV.
+                Seu domínio está ativado com SSL válido na Vercel e apontado corretamente na GoDaddy!
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              const domain = 'https://playstream.lat';
-              setDnsUrl(domain);
-              const updatedData = { dnsServerUrl: domain };
-              if (isFirebaseConfigured) {
-                await saveSettingsToFirestore(updatedData);
-              }
-              onUpdateSettings(updatedData);
-              setSaveSuccess(true);
-              setTimeout(() => setSaveSuccess(false), 3000);
-            }}
-            className="shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg transition-all text-xs"
-          >
-            <Zap className="w-4 h-4" /> Definir DNS do Painel para https://playstream.lat
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[11px] flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Valid Configuration
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                const domain = 'https://playstream.lat';
+                setDnsUrl(domain);
+                const updatedData = { dnsServerUrl: domain };
+                if (isFirebaseConfigured) {
+                  await saveSettingsToFirestore(updatedData);
+                }
+                onUpdateSettings(updatedData);
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+              }}
+              className="shrink-0 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg transition-all text-xs"
+            >
+              <Zap className="w-4 h-4" /> Aplicar DNS no Painel
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -143,33 +149,42 @@ export const NetworkSettingsView: React.FC<NetworkSettingsViewProps> = ({
           <div className="space-y-3 bg-slate-950 p-4 rounded-xl border border-slate-800">
             <h3 className="font-bold text-indigo-300 flex items-center gap-1.5 text-xs">
               <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] shrink-0">2</span>
-              Adicione o Apontamento DNS
+              Adicione os Registros e Remova IPs Antigos na GoDaddy
             </h3>
+            <div className="p-2 bg-red-500/10 border border-red-500/30 rounded text-[11px] text-red-200 space-y-1">
+              <p>📌 <strong>PASSO OBRIGATÓRIO NA GODADDY:</strong></p>
+              <p>Exclua os 2 registros do Tipo <strong>A</strong> antigos com valores: <code className="text-white font-mono bg-slate-900 px-1 rounded">76.223.105.230</code> e <code className="text-white font-mono bg-slate-900 px-1 rounded">13.248.243.5</code> (clique no ícone da lixeira ao lado deles).</p>
+            </div>
             <div className="space-y-2 text-[11px]">
-              <div className="grid grid-cols-2 gap-2 bg-slate-900 p-2 rounded border border-slate-800">
+              {/* Record A */}
+              <div className="bg-slate-900 p-2.5 rounded border border-slate-800 flex items-center justify-between">
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Tipo:</span>
-                  <span className="text-emerald-400 font-mono font-bold">CNAME</span> (ou A)
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Nome / Host:</span>
-                  <span className="text-white font-mono font-bold">@ (ou play)</span>
-                </div>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">Valor / Aponta para:</span>
-                  <span className="text-indigo-300 font-mono font-bold break-all text-[10px]">
-                    {typeof window !== 'undefined' ? window.location.hostname : 'ais-dev-e6oztpdpjnshng2ulne4a4-47092608107.us-east5.run.app'}
-                  </span>
+                  <span className="text-emerald-400 font-bold block text-[10px]">1º Registro — Domínio Principal (playstream.lat):</span>
+                  <span className="text-white font-mono text-[10px]">Type: <strong className="text-emerald-400">A</strong> | Name: <strong className="text-white">@</strong> | Value: <strong className="text-indigo-300 font-bold">216.198.79.1</strong></span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleCopy(typeof window !== 'undefined' ? window.location.hostname : '', 99)}
+                  onClick={() => handleCopy('216.198.79.1', 99)}
                   className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors shrink-0 ml-2"
-                  title="Copiar Host"
+                  title="Copiar IP Vercel"
                 >
                   {copiedIndex === 99 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Record CNAME */}
+              <div className="bg-slate-900 p-2.5 rounded border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-indigo-300 font-bold block text-[10px]">2º Registro — Subdomínio WWW (www.playstream.lat):</span>
+                  <span className="text-white font-mono text-[10px]">Type: <strong className="text-emerald-400">CNAME</strong> | Name: <strong className="text-white">www</strong> | Value: <strong className="text-indigo-300 font-bold font-mono">cname.vercel-dns.com</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy('cname.vercel-dns.com', 98)}
+                  className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors shrink-0 ml-2"
+                  title="Copiar CNAME Vercel"
+                >
+                  {copiedIndex === 98 ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>

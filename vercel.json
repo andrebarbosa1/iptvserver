@@ -1,0 +1,45 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/player_api.php",
+      "destination": "/api"
+    },
+    {
+      "source": "/get.php",
+      "destination": "/api"
+    },
+    {
+      "source": "/xmltv.php",
+      "destination": "/api"
+    },
+    {
+      "source": "/epg.xml",
+      "destination": "/api"
+    },
+    {
+      "source": "/epg.xml.gz",
+      "destination": "/api"
+    },
+    {
+      "source": "/live/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/movie/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/series/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!assets/|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

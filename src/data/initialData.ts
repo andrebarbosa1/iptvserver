@@ -357,12 +357,12 @@ export const INITIAL_LOGS: SystemLog[] = [
 ];
 
 export const DEFAULT_SETTINGS: SystemSettings = {
-  brandName: 'StreamFlow SaaS',
+  brandName: 'PlayStream.lat',
   logoUrl: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=150&auto=format&fit=crop&q=80',
   primaryColor: '#6366f1', // Indigo
-  dnsServerUrl: typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-e6oztpdpjnshng2ulne4a4-47092608107.us-east5.run.app',
+  dnsServerUrl: 'https://playstream.lat',
   supportPhone: '+55 11 99999-8888',
-  supportTelegram: '@StreamFlowSuporte',
+  supportTelegram: '@PlayStreamSuporte',
   currency: 'R$',
   autoBlockExpired: true,
   rateLimitPerMin: 120,
@@ -372,12 +372,12 @@ export const DEFAULT_SETTINGS: SystemSettings = {
 };
 
 export const DEFAULT_ANDROID_CONFIG: AndroidAppConfig = {
-  appName: 'StreamFlow TV',
-  packageName: 'com.streamflow.playertv',
+  appName: 'PlayStream TV',
+  packageName: 'lat.playstream.tv',
   versionName: '2.4.0',
   versionCode: 24,
   primaryColor: '#6366F1',
-  serverUrl: typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-e6oztpdpjnshng2ulne4a4-47092608107.us-east5.run.app',
+  serverUrl: 'https://playstream.lat',
   enableExoPlayerCache: true,
   enableTvInterface: true,
   splashBgColor: '#0F172A'
