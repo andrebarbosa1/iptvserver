@@ -81,6 +81,9 @@ export interface Playlist {
   autoUpdate: boolean;
   updateIntervalHours: number;
   items?: PlaylistItem[];
+  macAddress?: string;
+  portalUrl?: string;
+  importType?: 'm3u_url' | 'mac' | 'raw_text';
 }
 
 export interface SystemLog {

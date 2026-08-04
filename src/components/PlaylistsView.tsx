@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Playlist, PlaylistItem } from '../types';
 import { parseM3UContent } from '../utils/m3uParser';
-import { ListVideo, Plus, RefreshCw, CheckCircle, AlertTriangle, Trash2, Edit, Play, ExternalLink, Filter, Search, FileCode } from 'lucide-react';
+import { ListVideo, Plus, RefreshCw, CheckCircle, AlertTriangle, Trash2, Edit, Play, ExternalLink, Filter, Search, FileCode, Cpu, Globe, Copy, Check, Tv } from 'lucide-react';
 
 interface PlaylistsViewProps {
   playlists: Playlist[];
@@ -47,8 +47,12 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
   const [newChannelLogoUrl, setNewChannelLogoUrl] = useState('');
 
   // New Playlist Form State
+  const [importType, setImportType] = useState<'m3u_url' | 'mac' | 'raw_text'>('m3u_url');
   const [name, setName] = useState('');
   const [m3uUrl, setM3uUrl] = useState('');
+  const [macAddressInput, setMacAddressInput] = useState('');
+  const [portalUrlInput, setPortalUrlInput] = useState('https://www.playstream.lat');
+  const [copiedMac, setCopiedMac] = useState<string | null>(null);
   const [category, setCategory] = useState('Canais & VODs');
   const [channelCategoryType, setChannelCategoryType] = useState<'auto' | 'live' | 'movie' | 'series'>('auto');
   const [channelGroupTitle, setChannelGroupTitle] = useState('auto');
@@ -56,6 +60,13 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
   const [m3uRawText, setM3uRawText] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [validationSuccess, setValidationSuccess] = useState<boolean | null>(null);
+
+  const handleCopyMac = (mac: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(mac);
+    setCopiedMac(mac);
+    setTimeout(() => setCopiedMac(null), 2000);
+  };
 
   // Handle Add Individual Channel to Selected Playlist
   const handleAddSingleChannel = (e: React.FormEvent) => {
@@ -104,10 +115,43 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
 
   const handleCreatePlaylist = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || (!m3uUrl && !m3uRawText)) return;
+    if (!name) return;
+    if (importType === 'm3u_url' && !m3uUrl) return;
+    if (importType === 'raw_text' && !m3uRawText) return;
+    if (importType === 'mac' && !macAddressInput.trim()) return;
 
     let items: PlaylistItem[] = [];
-    if (m3uRawText) {
+    let finalM3uUrl = m3uUrl || 'https://www.playstream.lat/get.php';
+
+    if (importType === 'mac') {
+      const cleanMac = macAddressInput.trim().toUpperCase();
+      const cleanPortal = (portalUrlInput.trim() || 'https://www.playstream.lat').replace(/\/+$/, '');
+      finalM3uUrl = `${cleanPortal}/get.php?mac=${encodeURIComponent(cleanMac)}`;
+
+      items = [
+        {
+          id: `mac-1-${Date.now().toString(36)}`,
+          title: `[MAC ${cleanMac}] TV Ao Vivo HD`,
+          groupTitle: 'Stalker TV Ao Vivo',
+          streamUrl: `${cleanPortal}/live/mac/${cleanMac}/101.m3u8`,
+          category: 'live'
+        },
+        {
+          id: `mac-2-${Date.now().toString(36)}`,
+          title: `[MAC ${cleanMac}] Esportes Premium 4K`,
+          groupTitle: 'Stalker Esportes',
+          streamUrl: `${cleanPortal}/live/mac/${cleanMac}/102.m3u8`,
+          category: 'live'
+        },
+        {
+          id: `mac-3-${Date.now().toString(36)}`,
+          title: `[MAC ${cleanMac}] Filmes & Lançamentos VOD`,
+          groupTitle: 'Stalker Filmes VOD',
+          streamUrl: `${cleanPortal}/movie/mac/${cleanMac}/201.mp4`,
+          category: 'movie'
+        }
+      ];
+    } else if (importType === 'raw_text' && m3uRawText) {
       items = parseM3UContent(m3uRawText);
     } else if (selectedPlaylist?.items) {
       // Create copies of sample/selected items if importing via URL without raw text
@@ -153,14 +197,17 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
     const newPl: Playlist = {
       id: `pl-${Date.now().toString(36)}`,
       name,
-      m3uUrl: m3uUrl || 'https://www.playstream.lat/get.php',
+      m3uUrl: finalM3uUrl,
       category,
       itemCount: items.length || 8,
       lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
       status: 'active',
       autoUpdate: true,
       updateIntervalHours: 12,
-      items
+      items,
+      importType,
+      macAddress: importType === 'mac' ? macAddressInput.trim().toUpperCase() : undefined,
+      portalUrl: importType === 'mac' ? (portalUrlInput.trim() || 'https://www.playstream.lat') : undefined
     };
 
     onAddPlaylist(newPl);
@@ -177,6 +224,9 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
     setName('');
     setM3uUrl('');
     setM3uRawText('');
+    setMacAddressInput('');
+    setPortalUrlInput('https://www.playstream.lat');
+    setImportType('m3u_url');
     setChannelCategoryType('auto');
     setChannelGroupTitle('auto');
     setCustomGroupTitle('');
@@ -294,8 +344,25 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
 
                   <h3 className="text-base font-bold text-white">{pl.name}</h3>
                   <code className="block text-[10px] text-slate-400 mt-1 truncate bg-slate-950 p-1.5 rounded font-mono">
-                    {pl.m3uUrl}
+                    {pl.m3uUrl?.replace(/https?:\/\/play\.streamflow\.com/g, 'https://www.playstream.lat').replace(/https?:\/\/streamflow\.com/g, 'https://playstream.lat')}
                   </code>
+
+                  {pl.macAddress && (
+                    <div className="mt-2 bg-slate-950/90 p-2 rounded-xl border border-indigo-500/30 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-mono text-indigo-300 font-bold">
+                        <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>MAC: {pl.macAddress}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyMac(pl.macAddress!, e)}
+                        className="text-indigo-400 hover:text-white text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30 flex items-center gap-1 font-bold transition-all"
+                      >
+                        {copiedMac === pl.macAddress ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                        {copiedMac === pl.macAddress ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between mt-3 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
                     <span>{pl.itemCount} canais/VODs</span>
@@ -458,6 +525,43 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
             </h2>
 
             <form onSubmit={handleCreatePlaylist} className="space-y-4 text-xs">
+              {/* Mode Selector Tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setImportType('m3u_url')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    importType === 'm3u_url'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> URL M3U
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportType('mac')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    importType === 'mac'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Cpu className="w-3.5 h-3.5 text-indigo-300" /> Por Endereço MAC
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportType('raw_text')}
+                  className={`flex-1 py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all ${
+                    importType === 'raw_text'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5" /> Texto Direct
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">Nome da Lista *</label>
@@ -466,7 +570,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                     required
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder="Ex: Lista Canais Esportes & Filmes 4K"
+                    placeholder={importType === 'mac' ? 'Ex: Smart TV Sala - MAC Stalker' : 'Ex: Lista Canais Esportes & Filmes 4K'}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
                   />
                 </div>
@@ -489,6 +593,86 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                   </select>
                 </div>
               </div>
+
+              {/* Conditional Inputs Based on Import Type */}
+              {importType === 'mac' && (
+                <div className="bg-slate-800/60 p-3.5 rounded-xl border border-indigo-500/30 space-y-3">
+                  <div className="font-bold text-indigo-300 text-xs flex items-center gap-1.5">
+                    <Cpu className="w-4 h-4 text-indigo-400" /> Vínculo por Endereço MAC (Stalker / MAG / Smart TV)
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-semibold text-[11px]">Endereço MAC do Apararelho/App *</label>
+                      <input
+                        type="text"
+                        required
+                        value={macAddressInput}
+                        onChange={e => setMacAddressInput(e.target.value)}
+                        placeholder="00:1A:79:3A:4B:5C"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono uppercase text-xs focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 font-semibold text-[11px]">URL do Portal Stalker / DNS</label>
+                      <input
+                        type="text"
+                        value={portalUrlInput}
+                        onChange={e => setPortalUrlInput(e.target.value)}
+                        placeholder="https://www.playstream.lat"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                    💡 <strong>Como funciona:</strong> Digite o MAC do aparelho (MAG, TV Box, Formuler) ou aplicativo (XCIPTV, Smart STB, STBEmu). O sistema associará automaticamente os canais ao MAC e gerará a URL de autenticação: <span className="font-mono text-indigo-300">{portalUrlInput || 'https://www.playstream.lat'}/get.php?mac={macAddressInput || '00:1A:79:XX:XX:XX'}</span>.
+                  </p>
+                </div>
+              )}
+
+              {importType === 'm3u_url' && (
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">URL da Lista M3U / M3U8 *</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      required
+                      value={m3uUrl}
+                      onChange={e => setM3uUrl(e.target.value)}
+                      placeholder="https://www.playstream.lat/get.php?username=usr&password=pwd"
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestM3uUrl}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 rounded-xl"
+                    >
+                      {isValidating ? 'Validando...' : 'Validar URL'}
+                    </button>
+                  </div>
+                  {validationSuccess && (
+                    <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
+                      <CheckCircle className="w-3.5 h-3.5" /> URL M3U válida e acessível!
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {importType === 'raw_text' && (
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">Conteúdo M3U Direct (#EXTM3U) *</label>
+                  <textarea
+                    rows={4}
+                    required
+                    value={m3uRawText}
+                    onChange={e => setM3uRawText(e.target.value)}
+                    placeholder={`#EXTM3U\n#EXTINF:-1 tvg-logo="http://logo.com/c1.png" group-title="Ao Vivo",Canal Exemplo 4K\nhttps://stream.com/live.m3u8`}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-[11px]"
+                  />
+                </div>
+              )}
 
               {/* Channel Category Selection Options */}
               <div className="bg-slate-800/40 p-3.5 rounded-xl border border-slate-800 space-y-3">
@@ -545,42 +729,6 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                     />
                   </div>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">URL da Lista M3U / M3U8</label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={m3uUrl}
-                    onChange={e => setM3uUrl(e.target.value)}
-                    placeholder="https://servidor.com/lista.m3u"
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTestM3uUrl}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 rounded-xl"
-                  >
-                    {isValidating ? 'Validando...' : 'Validar URL'}
-                  </button>
-                </div>
-                {validationSuccess && (
-                  <p className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
-                    <CheckCircle className="w-3.5 h-3.5" /> URL M3U válida e acessível!
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">OU Cole o Conteúdo M3U Diretamente (#EXTM3U)</label>
-                <textarea
-                  rows={4}
-                  value={m3uRawText}
-                  onChange={e => setM3uRawText(e.target.value)}
-                  placeholder={`#EXTM3U\n#EXTINF:-1 tvg-logo="http://logo.com/c1.png" group-title="Ao Vivo",Canal Exemplo 4K\nhttps://stream.com/live.m3u8`}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-[11px]"
-                />
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3">

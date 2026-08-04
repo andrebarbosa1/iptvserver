@@ -69,7 +69,11 @@ const loadSavedData = <T,>(key: string, fallback: T): T => {
     if (isInitialized === 'true') {
       const saved = localStorage.getItem(key);
       if (saved !== null) {
-        return JSON.parse(saved);
+        // Automatically replace legacy demo domains with user's domain playstream.lat
+        const sanitized = saved
+          .replace(/https?:\/\/play\.streamflow\.com/g, 'https://www.playstream.lat')
+          .replace(/https?:\/\/streamflow\.com/g, 'https://playstream.lat');
+        return JSON.parse(sanitized);
       }
     }
   } catch (e) {
@@ -174,7 +178,17 @@ export default function App() {
         if (data) setSubscriptions(data);
       });
       const unsubPlaylists = subscribePlaylists(data => {
-        if (data) setPlaylists(data);
+        if (data) {
+          const sanitized = data.map(pl => ({
+            ...pl,
+            m3uUrl: pl.m3uUrl
+              ? pl.m3uUrl
+                  .replace(/https?:\/\/play\.streamflow\.com/g, 'https://www.playstream.lat')
+                  .replace(/https?:\/\/streamflow\.com/g, 'https://playstream.lat')
+              : 'https://www.playstream.lat/get.php'
+          }));
+          setPlaylists(sanitized);
+        }
       });
       const unsubLogs = subscribeLogs(data => {
         if (data) setLogs(data);

@@ -37,6 +37,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
   const [formPhone, setFormPhone] = useState('');
   const [formUsername, setFormUsername] = useState('');
   const [formPassword, setFormPassword] = useState('');
+  const [formMacAddress, setFormMacAddress] = useState('');
   const [formPlanDays, setFormPlanDays] = useState(30);
   const [formMaxConn, setFormMaxConn] = useState(2);
   const [formPlaylistId, setFormPlaylistId] = useState(playlists[0]?.id || 'pl-1');
@@ -72,6 +73,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
         phone: formPhone,
         username: formUsername,
         plainPassword: formPassword,
+        macAddress: formMacAddress.trim().toUpperCase() || undefined,
         planDurationDays: formPlanDays,
         maxConnections: formMaxConn,
         playlistId: formPlaylistId,
@@ -86,6 +88,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
         username: formUsername,
         passwordHash: '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
         plainPassword: formPassword,
+        macAddress: formMacAddress.trim().toUpperCase() || undefined,
         status: 'active',
         planDurationDays: formPlanDays,
         createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
@@ -108,6 +111,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
     setFormPhone('');
     setFormUsername(`user_${Math.floor(1000 + Math.random() * 9000)}`);
     setFormPassword(`pass${Math.floor(100 + Math.random() * 900)}`);
+    setFormMacAddress('');
     setFormPlanDays(30);
     setFormMaxConn(2);
     setFormNotes('');
@@ -121,6 +125,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
     setFormPhone(c.phone);
     setFormUsername(c.username);
     setFormPassword(c.plainPassword || 'password123');
+    setFormMacAddress(c.macAddress || '');
     setFormPlanDays(c.planDurationDays);
     setFormMaxConn(c.maxConnections);
     setFormNotes(c.notes || '');
@@ -376,7 +381,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                     required
                     value={formUsername}
                     onChange={e => setFormUsername(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-indigo-200 font-mono"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-indigo-200 font-mono text-xs"
                   />
                 </div>
                 <div>
@@ -386,9 +391,20 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                     required
                     value={formPassword}
                     onChange={e => setFormPassword(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-indigo-200 font-mono"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-indigo-200 font-mono text-xs"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">Endereço MAC do Dispositivo (Opcional - STB / Smart TV)</label>
+                <input
+                  type="text"
+                  value={formMacAddress}
+                  onChange={e => setFormMacAddress(e.target.value)}
+                  placeholder="00:1A:79:XX:XX:XX"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-indigo-200 font-mono uppercase text-xs"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -513,6 +529,35 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                   {`${settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/get.php?username=${selectedM3uCustomer.username}&password=${selectedM3uCustomer.plainPassword || 'password123'}&type=m3u_plus`}
                 </code>
               </div>
+
+              {/* MAC Address Link (if set) */}
+              {selectedM3uCustomer.macAddress && (
+                <div className="bg-slate-800/80 p-3 rounded-xl border border-indigo-500/30">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-indigo-300 uppercase flex items-center gap-1">
+                      📟 Link Vínculo Por MAC Address
+                    </span>
+                    {copiedKey === 'mac' ? (
+                      <span className="text-emerald-400 font-bold">Copiado!</span>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          handleCopy(
+                            `${settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/get.php?mac=${selectedM3uCustomer.macAddress}`,
+                            'mac'
+                          )
+                        }
+                        className="text-indigo-400 hover:underline flex items-center gap-1 font-bold"
+                      >
+                        <Copy className="w-3.5 h-3.5" /> Copiar URL MAC
+                      </button>
+                    )}
+                  </div>
+                  <code className="block bg-slate-900 p-2 rounded text-indigo-200 break-all font-mono text-[11px]">
+                    {`${settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/get.php?mac=${selectedM3uCustomer.macAddress}`}
+                  </code>
+                </div>
+              )}
 
               {/* Xtream Credentials Format */}
               <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 space-y-2">
