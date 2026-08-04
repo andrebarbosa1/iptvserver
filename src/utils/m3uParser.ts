@@ -81,7 +81,7 @@ export function parseM3UContent(rawText: string): PlaylistItem[] {
 }
 
 export function generateM3UContent(items: PlaylistItem[]): string {
-  let output = '#EXTM3U x-tvg-url="http://play.streamflow.com/epg.xml.gz"\n\n';
+  let output = '#EXTM3U x-tvg-url="https://www.playstream.lat/epg.xml.gz"\n\n';
   
   items.forEach(item => {
     const logo = item.logoUrl ? ` tvg-logo="${item.logoUrl}"` : '';

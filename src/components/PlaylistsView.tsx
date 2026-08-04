@@ -153,7 +153,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
     const newPl: Playlist = {
       id: `pl-${Date.now().toString(36)}`,
       name,
-      m3uUrl: m3uUrl || 'https://play.streamflow.com/custom.m3u',
+      m3uUrl: m3uUrl || 'https://www.playstream.lat/get.php',
       category,
       itemCount: items.length || 8,
       lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),

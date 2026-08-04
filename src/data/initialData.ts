@@ -97,7 +97,7 @@ export const INITIAL_PLAYLISTS: Playlist[] = [
   {
     id: 'pl-1',
     name: 'Lista VIP Premium 4K Autorizada',
-    m3uUrl: 'https://play.streamflow.com/api/v1/m3u/demo.m3u',
+    m3uUrl: 'https://www.playstream.lat/get.php?username=carlossilva&password=password123',
     category: 'Canais Abertos, Esportes, Filmes & Séries',
     itemCount: SAMPLE_PLAYLIST_ITEMS.length,
     lastUpdated: '2026-08-03 10:30',
@@ -109,7 +109,7 @@ export const INITIAL_PLAYLISTS: Playlist[] = [
   {
     id: 'pl-2',
     name: 'Lista Filmes & Documentários VOD',
-    m3uUrl: 'https://play.streamflow.com/api/v1/m3u/vod.m3u',
+    m3uUrl: 'https://www.playstream.lat/get.php?username=voduser&password=vodpass123',
     category: 'VOD Filmes & Séries HD',
     itemCount: 3,
     lastUpdated: '2026-08-02 18:15',

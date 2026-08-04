@@ -281,7 +281,7 @@ export const NetworkSettingsView: React.FC<NetworkSettingsViewProps> = ({
 
         <div className="space-y-3">
           <label className="block text-slate-300 font-semibold">
-            Endereço DNS do Servidor (Ex: https://play.streamflow.com ou https://iptvserver-topaz.vercel.app)
+            Endereço DNS do Servidor (Ex: https://www.playstream.lat ou https://playstream.lat)
           </label>
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
@@ -291,7 +291,7 @@ export const NetworkSettingsView: React.FC<NetworkSettingsViewProps> = ({
                 required
                 value={dnsUrl}
                 onChange={e => setDnsUrl(e.target.value)}
-                placeholder="https://play.streamflow.com"
+                placeholder="https://www.playstream.lat"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-indigo-300 font-mono text-xs font-bold focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -321,17 +321,17 @@ export const NetworkSettingsView: React.FC<NetworkSettingsViewProps> = ({
             <span className="text-[11px] text-slate-400">Atalhos rápidos:</span>
             <button
               type="button"
-              onClick={() => setDnsUrl('https://play.streamflow.com')}
+              onClick={() => setDnsUrl('https://www.playstream.lat')}
               className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-mono border border-slate-700 transition-colors"
             >
-              https://play.streamflow.com
+              https://www.playstream.lat
             </button>
             <button
               type="button"
-              onClick={() => setDnsUrl('https://iptvserver-topaz.vercel.app')}
+              onClick={() => setDnsUrl('https://playstream.lat')}
               className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-indigo-300 text-[11px] font-mono border border-slate-700 transition-colors"
             >
-              https://iptvserver-topaz.vercel.app
+              https://playstream.lat
             </button>
             {typeof window !== 'undefined' && (
               <button
