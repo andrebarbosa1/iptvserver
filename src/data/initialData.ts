@@ -360,7 +360,7 @@ export const DEFAULT_SETTINGS: SystemSettings = {
   brandName: 'StreamFlow SaaS',
   logoUrl: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=150&auto=format&fit=crop&q=80',
   primaryColor: '#6366f1', // Indigo
-  dnsServerUrl: 'https://play.streamflow.com',
+  dnsServerUrl: typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-e6oztpdpjnshng2ulne4a4-47092608107.us-east5.run.app',
   supportPhone: '+55 11 99999-8888',
   supportTelegram: '@StreamFlowSuporte',
   currency: 'R$',
@@ -377,7 +377,7 @@ export const DEFAULT_ANDROID_CONFIG: AndroidAppConfig = {
   versionName: '2.4.0',
   versionCode: 24,
   primaryColor: '#6366F1',
-  serverUrl: 'https://play.streamflow.com',
+  serverUrl: typeof window !== 'undefined' ? window.location.origin : 'https://ais-dev-e6oztpdpjnshng2ulne4a4-47092608107.us-east5.run.app',
   enableExoPlayerCache: true,
   enableTvInterface: true,
   splashBgColor: '#0F172A'

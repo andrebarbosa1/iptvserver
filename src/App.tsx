@@ -59,6 +59,7 @@ import { AndroidAppView } from './components/AndroidAppView';
 import { ApiDocsView } from './components/ApiDocsView';
 import { PhpInstallerExplorer } from './components/PhpInstallerExplorer';
 import { WhiteLabelSettingsView } from './components/WhiteLabelSettingsView';
+import { NetworkSettingsView } from './components/NetworkSettingsView';
 import { LogsView } from './components/LogsView';
 import { AdminAuthView } from './components/AdminAuthView';
 
@@ -596,6 +597,14 @@ export default function App() {
                   settings={settings}
                   onUpdateSettings={handleUpdateSettings}
                   onClearAllData={handleClearAllData}
+                />
+              )}
+
+              {activeTab === 'network' && (
+                <NetworkSettingsView
+                  settings={settings}
+                  onUpdateSettings={handleUpdateSettings}
+                  customers={customers}
                 />
               )}
 

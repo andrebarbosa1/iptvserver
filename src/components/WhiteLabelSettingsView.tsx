@@ -81,19 +81,19 @@ export const WhiteLabelSettingsView: React.FC<WhiteLabelSettingsViewProps> = ({ 
                   type="text"
                   value={form.dnsServerUrl}
                   onChange={e => setForm({ ...form, dnsServerUrl: e.target.value })}
-                  placeholder="https://play.streamflow.com"
+                  placeholder="https://iptvserver-topaz.vercel.app"
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-indigo-300 font-mono font-bold text-xs"
                 />
                 <button
                   type="button"
-                  onClick={() => setForm({ ...form, dnsServerUrl: 'https://play.streamflow.com' })}
+                  onClick={() => setForm({ ...form, dnsServerUrl: 'https://iptvserver-topaz.vercel.app' })}
                   className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-3 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1 shrink-0"
                 >
-                  <RefreshCw className="w-3.5 h-3.5" /> Aplicar DNS Padrão
+                  <RefreshCw className="w-3.5 h-3.5" /> Usar Vercel DNS
                 </button>
               </div>
               <p className="text-[11px] text-slate-400">
-                Endereço DNS configurado: <strong className="text-white font-mono">https://play.streamflow.com</strong>. Todas as linhas M3U e conexões Xtream utilizarão este servidor.
+                Endereço DNS configurado: <strong className="text-white font-mono">{form.dnsServerUrl || 'https://iptvserver-topaz.vercel.app'}</strong>. Todas as linhas M3U e conexões Xtream utilizarão este servidor.
               </p>
             </div>
 

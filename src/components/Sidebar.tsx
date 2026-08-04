@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Database,
-  Lock
+  Lock,
+  Globe
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -104,6 +105,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, count
       label: 'Configurações White Label',
       icon: Settings,
       badge: null,
+      section: 'SISTEMA'
+    },
+    {
+      id: 'network',
+      label: 'Configurações de Rede & DNS',
+      icon: Globe,
+      badge: 'Firestore',
       section: 'SISTEMA'
     },
     {

@@ -499,7 +499,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                     <button
                       onClick={() =>
                         handleCopy(
-                          `${settings.dnsServerUrl}/get.php?username=${selectedM3uCustomer.username}&password=${selectedM3uCustomer.plainPassword || 'password123'}&type=m3u_plus`,
+                          `${settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/get.php?username=${selectedM3uCustomer.username}&password=${selectedM3uCustomer.plainPassword || 'password123'}&type=m3u_plus`,
                           'm3u'
                         )
                       }
@@ -510,17 +510,17 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
                   )}
                 </div>
                 <code className="block bg-slate-900 p-2 rounded text-indigo-200 break-all font-mono text-[11px]">
-                  {`${settings.dnsServerUrl}/get.php?username=${selectedM3uCustomer.username}&password=${selectedM3uCustomer.plainPassword || 'password123'}&type=m3u_plus`}
+                  {`${settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}/get.php?username=${selectedM3uCustomer.username}&password=${selectedM3uCustomer.plainPassword || 'password123'}&type=m3u_plus`}
                 </code>
               </div>
 
               {/* Xtream Credentials Format */}
               <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 space-y-2">
-                <span className="font-semibold text-emerald-400 uppercase block">Formato Xtream Codes / App Android</span>
+                <span className="font-semibold text-emerald-400 uppercase block">Formato Xtream Codes / App Android / XCIPTV</span>
                 <div className="grid grid-cols-3 gap-2 font-mono text-[11px]">
                   <div className="bg-slate-900 p-2 rounded">
                     <span className="text-slate-400 block text-[10px]">Servidor / URL:</span>
-                    <span className="text-white font-bold">{settings.dnsServerUrl}</span>
+                    <span className="text-white font-bold break-all">{settings.dnsServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')}</span>
                   </div>
                   <div className="bg-slate-900 p-2 rounded">
                     <span className="text-slate-400 block text-[10px]">Usuário:</span>
@@ -575,7 +575,7 @@ export const ClientesView: React.FC<ClientesViewProps> = ({
             <div className="bg-slate-800/80 p-3 rounded-xl border border-slate-700 text-xs text-slate-300 space-y-1">
               <div>✓ Apaga todos os clientes de teste</div>
               <div>✓ Apaga os logs e históricos anteriores</div>
-              <div>✓ Permite que você crie seus novos clientes com o DNS <strong className="text-indigo-300">https://play.streamflow.com</strong></div>
+              <div>✓ Permite que você crie seus novos clientes com o DNS <strong className="text-indigo-300">{settings.dnsServerUrl}</strong></div>
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
