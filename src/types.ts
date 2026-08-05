@@ -144,3 +144,49 @@ export interface AndroidAppConfig {
   enableTvInterface: boolean;
   splashBgColor: string;
 }
+
+export interface Reseller {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  username: string;
+  plainPassword?: string;
+  credits: number;
+  pricePerCredit: number;
+  customersCount: number;
+  status: 'active' | 'suspended';
+  createdAt: string;
+  lastLogin?: string;
+  notes?: string;
+  maxConnectionsAllowed?: number;
+}
+
+export interface EpgSource {
+  id: string;
+  name: string;
+  url: string;
+  channelsCount: number;
+  lastSync: string;
+  status: 'active' | 'error' | 'syncing';
+  autoUpdate: boolean;
+}
+
+export interface EpgProgramItem {
+  id: string;
+  channelId: string;
+  channelTitle: string;
+  epgTvgId: string;
+  logoUrl?: string;
+  groupTitle?: string;
+  currentTitle: string;
+  currentDesc: string;
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+  progressPercent: number;
+  nextTitle: string;
+  nextDesc: string;
+  nextStartTime: string;
+  nextEndTime: string;
+}
+

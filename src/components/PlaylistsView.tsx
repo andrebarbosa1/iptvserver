@@ -39,6 +39,14 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [recentlyAddedChannelName, setRecentlyAddedChannelName] = useState<string | null>(null);
 
+  // Health Status Checker State
+  const [healthStatusMap, setHealthStatusMap] = useState<Record<string, { online: boolean; latencyMs?: number; checking?: boolean }>>({});
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+
+  // Batch Category Re-assignment State
+  const [isBatchCategoryModalOpen, setIsBatchCategoryModalOpen] = useState(false);
+  const [batchCategoryName, setBatchCategoryName] = useState('ESPORTES VIP');
+
   // New Single Channel Form State
   const [newChannelTitle, setNewChannelTitle] = useState('');
   const [newChannelStreamUrl, setNewChannelStreamUrl] = useState('');
@@ -111,6 +119,93 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
     setTimeout(() => {
       setRecentlyAddedChannelName(null);
     }, 6000);
+  };
+
+  // Delete Individual Channel
+  const handleDeleteSingleChannel = (channelId: string) => {
+    if (!selectedPlaylist) return;
+    const currentItems = selectedPlaylist.items || [];
+    const updatedItems = currentItems.filter(item => item.id !== channelId);
+
+    const updatedPl: Playlist = {
+      ...selectedPlaylist,
+      itemCount: updatedItems.length,
+      lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      items: updatedItems
+    };
+
+    onUpdatePlaylist(selectedPlaylist.id, {
+      items: updatedItems,
+      itemCount: updatedItems.length,
+      lastUpdated: updatedPl.lastUpdated
+    });
+    setSelectedPlaylist(updatedPl);
+  };
+
+  // Test Stream Health for visible items
+  const handleCheckStreamHealthBatch = async (itemsToTest: PlaylistItem[]) => {
+    if (!itemsToTest || itemsToTest.length === 0) return;
+    setIsCheckingHealth(true);
+
+    const urls = itemsToTest.map(i => i.streamUrl);
+    try {
+      const res = await fetch('/api/v1/check_stream_health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ streamUrls: urls })
+      });
+      const data = await res.json();
+      if (data.results && Array.isArray(data.results)) {
+        const newMap = { ...healthStatusMap };
+        data.results.forEach((resItem: any) => {
+          newMap[resItem.url] = {
+            online: resItem.online,
+            latencyMs: resItem.latencyMs
+          };
+        });
+        setHealthStatusMap(newMap);
+      }
+    } catch (err) {
+      console.warn('Erro ao testar health das streams:', err);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  };
+
+  // Batch Category Re-assignment Handler
+  const handleBatchChangeCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlaylist || !batchCategoryName.trim()) return;
+
+    const currentItems = selectedPlaylist.items || [];
+    const targetGroup = batchCategoryName.trim();
+
+    // Reassign groupTitle for items matching filter or all if categoryFilter is 'all'
+    const updatedItems = currentItems.map(item => {
+      const matchesCategory =
+        categoryFilter === 'all' || item.category === categoryFilter;
+      const matchesSearch =
+        !channelSearch || item.title.toLowerCase().includes(channelSearch.toLowerCase());
+
+      if (matchesCategory && matchesSearch) {
+        return { ...item, groupTitle: targetGroup };
+      }
+      return item;
+    });
+
+    const updatedPl: Playlist = {
+      ...selectedPlaylist,
+      lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      items: updatedItems
+    };
+
+    onUpdatePlaylist(selectedPlaylist.id, {
+      items: updatedItems,
+      lastUpdated: updatedPl.lastUpdated
+    });
+    setSelectedPlaylist(updatedPl);
+    setIsBatchCategoryModalOpen(false);
+    alert(`✅ Categoria alterada para "${targetGroup}" em ${updatedItems.filter(i => i.groupTitle === targetGroup).length} canais!`);
   };
 
   const handleCreatePlaylist = (e: React.FormEvent) => {
@@ -437,33 +532,51 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                 </div>
               )}
 
-              {/* Search & Category Filter */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="relative w-full sm:w-64">
+              {/* Search, Health Test & Batch Category Filter */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="relative w-full md:w-64">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
                     type="text"
                     placeholder="Filtrar canais ou filmes..."
                     value={channelSearch}
                     onChange={e => setChannelSearch(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {['all', 'live', 'movie', 'series'].map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setCategoryFilter(cat)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize transition-all ${
-                        categoryFilter === cat
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {cat === 'all' ? 'Todos' : cat === 'live' ? 'Ao Vivo' : cat === 'movie' ? 'Filmes' : 'Séries'}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleCheckStreamHealthBatch(filteredItems)}
+                    disabled={isCheckingHealth || filteredItems.length === 0}
+                    className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50"
+                  >
+                    <CheckCircle className={`w-3.5 h-3.5 ${isCheckingHealth ? 'animate-spin text-emerald-400' : ''}`} />
+                    {isCheckingHealth ? 'Verificando Streams...' : 'Verificar Status (Health)'}
+                  </button>
+
+                  <button
+                    onClick={() => setIsBatchCategoryModalOpen(true)}
+                    className="bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                  >
+                    <Filter className="w-3.5 h-3.5 text-indigo-400" /> Categoria em Lote
+                  </button>
+
+                  <div className="flex items-center gap-1 bg-slate-800/80 p-0.5 rounded-xl border border-slate-700">
+                    {['all', 'live', 'movie', 'series'].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setCategoryFilter(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all ${
+                          categoryFilter === cat
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {cat === 'all' ? 'Todos' : cat === 'live' ? 'Ao Vivo' : cat === 'movie' ? 'Filmes' : 'Séries'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -471,6 +584,8 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
               <div className="max-h-[450px] overflow-y-auto space-y-2 pr-1">
                 {filteredItems.map(item => {
                   const isJustAdded = item.title === recentlyAddedChannelName;
+                  const healthStatus = healthStatusMap[item.streamUrl];
+
                   return (
                     <div
                       key={item.id}
@@ -485,7 +600,7 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                           <img
                             src={item.logoUrl}
                             alt={item.title}
-                            className="w-10 h-10 object-contain rounded bg-slate-900 p-1 border border-slate-700"
+                            className="w-10 h-10 object-contain rounded bg-slate-900 p-1 border border-slate-700 shrink-0"
                           />
                         ) : (
                           <div className="w-10 h-10 rounded bg-indigo-900/50 flex items-center justify-center font-bold text-indigo-300 shrink-0">
@@ -493,27 +608,52 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                           </div>
                         )}
                         <div>
-                          <div className="font-bold text-white text-sm flex items-center gap-2">
+                          <div className="font-bold text-white text-sm flex items-center gap-2 flex-wrap">
                             <span>{item.title}</span>
                             {isJustAdded && (
                               <span className="text-[9px] bg-emerald-500/20 text-emerald-300 font-extrabold px-1.5 py-0.2 rounded border border-emerald-500/30 uppercase tracking-wide animate-pulse">
                                 NOVO CANAL
                               </span>
                             )}
+                            {healthStatus && (
+                              <span
+                                className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                                  healthStatus.online
+                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                    : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                                }`}
+                              >
+                                {healthStatus.online ? '🟢 ONLINE' : '🔴 OFFLINE'}
+                                {healthStatus.latencyMs ? ` (${healthStatus.latencyMs}ms)` : ''}
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[11px] text-indigo-300">{item.groupTitle}</div>
+                          <div className="text-[11px] text-indigo-300 flex items-center gap-1.5">
+                            <span className="bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded font-mono text-[10px] border border-indigo-500/20">
+                              {item.groupTitle}
+                            </span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-400 capitalize">{item.category}</span>
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-slate-400 hidden md:block max-w-[200px] truncate">
+                        <span className="font-mono text-[10px] text-slate-400 hidden lg:block max-w-[180px] truncate">
                           {item.streamUrl}
                         </span>
                         <button
                           onClick={() => onPreviewChannelInPlayer(item)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shrink-0"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shrink-0 text-xs shadow-sm"
                         >
-                          <Play className="w-3.5 h-3.5 fill-current" /> Testar Stream
+                          <Play className="w-3.5 h-3.5 fill-current" /> Testar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSingleChannel(item.id)}
+                          title="Excluir este canal"
+                          className="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -849,6 +989,70 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                   className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/20"
                 >
                   Adicionar Canal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Category Re-assignment Modal */}
+      {isBatchCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Filter className="w-5 h-5 text-indigo-400" /> Alterar Categoria em Lote
+              </h2>
+              <button
+                onClick={() => setIsBatchCategoryModalOpen(false)}
+                className="text-slate-400 hover:text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Digite o novo nome do grupo/categoria para os canais filtrados atualmente no painel. Esta alteração reflete imediatamente no XCIPTV e no EPG.
+            </p>
+
+            <form onSubmit={handleBatchChangeCategory} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">Novo Nome do Grupo / Categoria *</label>
+                <input
+                  type="text"
+                  required
+                  value={batchCategoryName}
+                  onChange={e => setBatchCategoryName(e.target.value)}
+                  placeholder="Ex: ESPORTES VIP, FILMES 4K, NOTÍCIAS"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-medium focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] text-slate-400">
+                <span>Canais que receberão este grupo: </span>
+                <strong className="text-indigo-300 font-mono">
+                  {selectedPlaylist?.items?.filter(item => {
+                    const matchesCategory = categoryFilter === 'all' || item.category === categoryFilter;
+                    const matchesSearch = !channelSearch || item.title.toLowerCase().includes(channelSearch.toLowerCase());
+                    return matchesCategory && matchesSearch;
+                  }).length || 0} canais selecionados
+                </strong>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchCategoryModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/20"
+                >
+                  Aplicar Categoria
                 </button>
               </div>
             </form>

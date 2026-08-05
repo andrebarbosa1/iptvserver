@@ -167,8 +167,8 @@ async function startServer() {
           if (fs.existsSync(file)) {
             const raw = fs.readFileSync(file, 'utf-8');
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed.playlists)) syncedPlaylists = parsed.playlists;
-            if (Array.isArray(parsed.customers)) syncedCustomers = parsed.customers;
+            if (Array.isArray(parsed.playlists) && parsed.playlists.length > 0) syncedPlaylists = parsed.playlists;
+            if (Array.isArray(parsed.customers) && parsed.customers.length > 0) syncedCustomers = parsed.customers;
           }
         } catch (e) {}
       }
@@ -179,8 +179,8 @@ async function startServer() {
     for (const pl of syncedPlaylists) {
       if (Array.isArray(pl.items) && pl.items.length > 0) {
         allItems.push(...pl.items);
-      } else if (pl.m3uUrl && typeof pl.m3uUrl === 'string') {
-        // Fetch remote M3U playlist if items array is empty
+      } else if (pl.m3uUrl && typeof pl.m3uUrl === 'string' && !pl.m3uUrl.includes('/get.php')) {
+        // Fetch remote M3U playlist if items array is empty and m3uUrl is external
         const cache = remoteM3uCache.get(pl.m3uUrl);
         const now = Date.now();
         if (cache && (now - cache.fetchedAt) < 600000) { // 10 minutes cache
@@ -209,6 +209,11 @@ async function startServer() {
         }
       }
     }
+
+    // Assign consistent numeric stream IDs to all channels
+    allItems.forEach((item, idx) => {
+      item.stream_id = 1000 + idx;
+    });
 
     const categoriesMap = new Map<string, string>();
     const categoriesList: { category_id: string; category_name: string; parent_id: number }[] = [];
@@ -243,9 +248,9 @@ async function startServer() {
     let m3u = `#EXTM3U x-tvg-url="${baseUrl}/epg.xml.gz"\n\n`;
 
     items.forEach((item, idx) => {
-      const streamId = 100 + idx;
-      const type = item.category === 'movie' ? 'movie' : 'live';
-      const ext = item.category === 'movie' ? '.mp4' : '.m3u8';
+      const streamId = item.stream_id || (1000 + idx);
+      const type = item.category === 'movie' ? 'movie' : item.category === 'series' ? 'series' : 'live';
+      const ext = item.category === 'movie' ? '.mp4' : item.category === 'series' ? '.mp4' : '.m3u8';
       m3u += `#EXTINF:-1 tvg-id="${item.id || streamId}" tvg-name="${item.title}" tvg-logo="${item.logoUrl || ''}" group-title="${item.groupTitle || 'Ao Vivo'}",${item.title}\n`;
       m3u += `${baseUrl}/${type}/${username}/${password}/${streamId}${ext}\n\n`;
     });
@@ -319,8 +324,10 @@ async function startServer() {
     const password = (req.query.password || req.body?.password || 'senha') as string;
     const action = (req.query.action || req.body?.action || '') as string;
 
-    const host = req.headers.host || 'localhost:3000';
-    const protocol = req.protocol || 'http';
+    const forwardedProto = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'http';
+    const forwardedHost = (req.headers['x-forwarded-host'] as string) || req.headers.host || 'localhost:3000';
+    const hostDomain = forwardedHost.split(':')[0];
+    const hostPort = forwardedHost.split(':')[1] || (forwardedProto === 'https' ? '443' : '80');
 
     const { items, categoriesMap, categoriesList } = await getAllSyncedItemsAsync();
 
@@ -339,7 +346,7 @@ async function startServer() {
       const liveItems = items.filter(it => it.category !== 'movie' && it.category !== 'series');
 
       const streams = liveItems.map((item, idx) => {
-        const streamId = 100 + idx;
+        const streamId = item.stream_id || (1000 + idx);
         const gTitle = item.groupTitle || 'Canais Principais';
         const itemCatId = categoriesMap.get(gTitle) || '1';
         return {
@@ -377,6 +384,7 @@ async function startServer() {
 
     // 4. VOD / Movie Streams for XCIPTV
     if (action === 'get_vod_streams') {
+      const catId = (req.query.category_id || req.body?.category_id || '') as string;
       const vodItems = items.filter(it => {
         if (it.category === 'movie') return true;
         const gLower = (it.groupTitle || '').toLowerCase();
@@ -384,7 +392,7 @@ async function startServer() {
       });
 
       const streams = vodItems.map((item, idx) => {
-        const streamId = 200 + idx;
+        const streamId = item.stream_id || (2000 + idx);
         const gTitle = item.groupTitle || 'Filmes & VODs';
         const itemCatId = categoriesMap.get(gTitle) || '10';
         return {
@@ -400,6 +408,10 @@ async function startServer() {
           direct_source: item.streamUrl
         };
       });
+
+      if (catId) {
+        return res.json(streams.filter(s => s.category_id === catId));
+      }
       return res.json(streams);
     }
 
@@ -416,6 +428,7 @@ async function startServer() {
 
     // 6. Series Streams
     if (action === 'get_series_streams') {
+      const catId = (req.query.category_id || req.body?.category_id || '') as string;
       const seriesItems = items.filter(it => {
         if (it.category === 'series') return true;
         const gLower = (it.groupTitle || '').toLowerCase();
@@ -423,7 +436,7 @@ async function startServer() {
       });
 
       const streams = seriesItems.map((item, idx) => {
-        const streamId = 300 + idx;
+        const streamId = item.stream_id || (3000 + idx);
         const gTitle = item.groupTitle || 'Séries Principais';
         const itemCatId = categoriesMap.get(gTitle) || '20';
         return {
@@ -441,33 +454,50 @@ async function startServer() {
           category_id: itemCatId
         };
       });
+
+      if (catId) {
+        return res.json(streams.filter(s => s.category_id === catId));
+      }
       return res.json(streams);
     }
 
     // 7. EPG / Short EPG for XCIPTV
     if (action === 'get_short_epg' || action === 'get_epg') {
-      return res.json({
-        epg_listings: [
-          {
-            id: '1',
-            epg_id: '101',
-            title: 'Transmissão Ao Vivo StreamFlow HD',
-            lang: 'pt',
-            start: '2026-08-04 00:00:00',
-            end: '2026-08-05 00:00:00',
-            description: 'Programação de TV ao Vivo e Canais HLS / M3U8.',
-            channel_id: '101',
-            start_timestamp: Math.floor(Date.now() / 1000) - 3600,
-            stop_timestamp: Math.floor(Date.now() / 1000) + 86400
-          }
-        ]
+      const streamIdReq = (req.query.stream_id || req.body?.stream_id || '') as string;
+      const liveItems = items.filter(it => it.category !== 'movie' && it.category !== 'series');
+      const targetItems = liveItems.length > 0 ? liveItems : items;
+
+      const nowTs = Math.floor(Date.now() / 1000);
+      const epgListings = targetItems.map((item, idx) => {
+        const streamId = item.stream_id || (1000 + idx);
+        return {
+          id: String(idx + 1),
+          epg_id: String(streamId),
+          title: `${item.title} - Programação Ao Vivo`,
+          lang: 'pt',
+          start: new Date(Date.now() - 3600000).toISOString().replace('T', ' ').slice(0, 19),
+          end: new Date(Date.now() + 86400000).toISOString().replace('T', ' ').slice(0, 19),
+          description: `Transmissão ao vivo de ${item.title} (${item.groupTitle || 'Canais Principais'}). Sinal HLS / M3U8.`,
+          channel_id: item.id || `ch-${streamId}`,
+          start_timestamp: nowTs - 3600,
+          stop_timestamp: nowTs + 86400
+        };
       });
+
+      if (streamIdReq) {
+        const filtered = epgListings.filter(e => e.epg_id === String(streamIdReq));
+        return res.json({ epg_listings: filtered.length > 0 ? filtered : epgListings.slice(0, 5) });
+      }
+
+      return res.json({ epg_listings: epgListings.slice(0, 100) });
     }
 
     // Check customer credentials from synced customers
     const matchedCustomer = syncedCustomers.find((c: any) =>
       c.username === username || c.email === username || c.id === username
     );
+
+    const isAccountActive = matchedCustomer ? matchedCustomer.status !== 'inactive' && matchedCustomer.status !== 'expired' : true;
 
     // Default Xtream Codes Login Response for XCIPTV authentication check
     return res.json({
@@ -477,22 +507,22 @@ async function startServer() {
         message: matchedCustomer
           ? `Autenticação bem sucedida. Cliente: ${matchedCustomer.name || username}`
           : 'Autenticação realizada com sucesso - StreamFlow Server',
-        auth: 1,
-        status: matchedCustomer?.status === 'inactive' ? 'Expired' : 'Active',
-        exp_date: matchedCustomer?.expirationDate
-          ? String(Math.floor(new Date(matchedCustomer.expirationDate).getTime() / 1000))
+        auth: isAccountActive ? 1 : 0,
+        status: isAccountActive ? 'Active' : 'Expired',
+        exp_date: matchedCustomer?.expirationDate || matchedCustomer?.expiresAt
+          ? String(Math.floor(new Date(matchedCustomer.expirationDate || matchedCustomer.expiresAt).getTime() / 1000))
           : '1786838400',
-        is_trial: '0',
+        is_trial: matchedCustomer?.status === 'trial' ? '1' : '0',
         active_cons: '1',
         created_at: '1672531200',
         max_connections: matchedCustomer?.maxConnections ? String(matchedCustomer.maxConnections) : '5',
         allowed_output_formats: ['m3u8', 'ts', 'rtmp', 'mp4', 'mkv']
       },
       server_info: {
-        url: host.split(':')[0],
-        port: host.split(':')[1] || '80',
+        url: hostDomain,
+        port: hostPort,
         https_port: '443',
-        server_protocol: protocol,
+        server_protocol: forwardedProto,
         rtmp_port: '8888',
         timezone: 'America/Sao_Paulo',
         timestamp_now: Math.floor(Date.now() / 1000),
@@ -502,19 +532,74 @@ async function startServer() {
     });
   });
 
+  // Stream Health Checker API Endpoint
+  app.post('/api/v1/check_stream_health', async (req: Request, res: Response) => {
+    const { streamUrl, streamUrls } = req.body;
+
+    const testSingleUrl = async (url: string) => {
+      const startTime = Date.now();
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3500);
+        const resp = await fetch(url, { method: 'HEAD', signal: controller.signal });
+        clearTimeout(timeout);
+        const latency = Date.now() - startTime;
+        return { url, online: resp.ok || resp.status < 400, statusCode: resp.status, latencyMs: latency };
+      } catch (err: any) {
+        const latency = Date.now() - startTime;
+        return { url, online: false, statusCode: 0, error: err.message || 'Timeout / Unreachable', latencyMs: latency };
+      }
+    };
+
+    if (streamUrl && typeof streamUrl === 'string') {
+      const result = await testSingleUrl(streamUrl);
+      return res.json({ status: 'ok', result });
+    }
+
+    if (Array.isArray(streamUrls) && streamUrls.length > 0) {
+      const limited = streamUrls.slice(0, 30); // Test up to 30 channels per request
+      const results = await Promise.all(limited.map(u => testSingleUrl(u)));
+      return res.json({ status: 'ok', results });
+    }
+
+    return res.status(400).json({ status: 'error', message: 'URL de stream não fornecida.' });
+  });
+
   // EPG XMLTV Endpoints for XCIPTV & Smart IPTV
-  app.all(['/xmltv.php', '/epg.xml.gz', '/epg.xml'], (req: Request, res: Response) => {
+  app.all(['/xmltv.php', '/epg.xml.gz', '/epg.xml'], async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/xml; charset=utf-8');
-    res.send(`<?xml font="1.0" encoding="UTF-8"?>
-<tv generator-info-name="StreamFlow EPG Generator">
-  <channel id="101">
-    <display-name>Canal Ao Vivo HD</display-name>
-  </channel>
-  <programme start="20260804000000 +0000" stop="20260805000000 +0000" channel="101">
-    <title lang="pt">Programação em Tempo Real</title>
-    <desc lang="pt">Sinal de TV ao Vivo e grade de programação sincronizada.</desc>
-  </programme>
-</tv>`);
+    const { items } = await getAllSyncedItemsAsync();
+
+    const now = new Date();
+    const startTimeStr = now.toISOString().replace(/[-T:]/g, '').slice(0, 14) + ' +0000';
+    const tomorrow = new Date(now.getTime() + 24 * 3600 * 1000);
+    const stopTimeStr = tomorrow.toISOString().replace(/[-T:]/g, '').slice(0, 14) + ' +0000';
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="StreamFlow Dynamic EPG Engine">\n`;
+
+    const liveItems = items.filter(it => it.category !== 'movie' && it.category !== 'series');
+    const targetList = liveItems.length > 0 ? liveItems : items;
+
+    targetList.forEach((item, idx) => {
+      const chId = item.id || `ch-${100 + idx}`;
+      const titleClean = (item.title || 'Canal Ao Vivo').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const groupClean = (item.groupTitle || 'Geral').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      xml += `  <channel id="${chId}">\n`;
+      xml += `    <display-name>${titleClean}</display-name>\n`;
+      if (item.logoUrl) {
+        xml += `    <icon src="${item.logoUrl.replace(/&/g, '&amp;')}" />\n`;
+      }
+      xml += `  </channel>\n`;
+
+      xml += `  <programme start="${startTimeStr}" stop="${stopTimeStr}" channel="${chId}">\n`;
+      xml += `    <title lang="pt">${titleClean} - Transmissão Ao Vivo</title>\n`;
+      xml += `    <desc lang="pt">Programação em tempo real para a categoria ${groupClean}. Sinal de streaming em alta definição.</desc>\n`;
+      xml += `  </programme>\n`;
+    });
+
+    xml += `</tv>`;
+    res.send(xml);
   });
 
   // Stream Player Proxy / Redirect endpoints for XCIPTV video playback
@@ -525,9 +610,18 @@ async function startServer() {
     const { items } = await getAllSyncedItemsAsync();
 
     if (!isNaN(numId)) {
-      const index = numId >= 100 ? numId - 100 : numId - 1;
-      if (items[index] && items[index].streamUrl) {
-        return res.redirect(items[index].streamUrl);
+      // 1. Try matching exact stream_id
+      const foundByStreamId = items.find(it => it.stream_id === numId);
+      if (foundByStreamId && foundByStreamId.streamUrl) {
+        return res.redirect(foundByStreamId.streamUrl);
+      }
+
+      // 2. Fallback index matching
+      const liveItems = items.filter(it => it.category !== 'movie' && it.category !== 'series');
+      const idx = numId >= 1000 ? numId - 1000 : numId >= 100 ? numId - 100 : numId - 1;
+      const targetList = liveItems.length > 0 ? liveItems : items;
+      if (targetList[idx] && targetList[idx].streamUrl) {
+        return res.redirect(targetList[idx].streamUrl);
       }
     }
 
@@ -546,9 +640,18 @@ async function startServer() {
     const { items } = await getAllSyncedItemsAsync();
 
     if (!isNaN(numId)) {
-      const index = numId >= 200 ? numId - 200 : numId - 1;
-      if (items[index] && items[index].streamUrl) {
-        return res.redirect(items[index].streamUrl);
+      // 1. Try matching exact stream_id
+      const foundByStreamId = items.find(it => it.stream_id === numId);
+      if (foundByStreamId && foundByStreamId.streamUrl) {
+        return res.redirect(foundByStreamId.streamUrl);
+      }
+
+      // 2. Fallback index matching
+      const vodItems = items.filter(it => it.category === 'movie' || it.category === 'series');
+      const idx = numId >= 2000 ? numId - 2000 : numId >= 200 ? numId - 200 : numId - 1;
+      const targetList = vodItems.length > 0 ? vodItems : items;
+      if (targetList[idx] && targetList[idx].streamUrl) {
+        return res.redirect(targetList[idx].streamUrl);
       }
     }
 

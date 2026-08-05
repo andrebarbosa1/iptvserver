@@ -1,4 +1,4 @@
-import { Customer, Trial, Plan, Subscription, Playlist, SystemLog, SystemSettings, AndroidAppConfig, PlaylistItem, AdminUser } from '../types';
+import { Customer, Trial, Plan, Subscription, Playlist, SystemLog, SystemSettings, AndroidAppConfig, PlaylistItem, AdminUser, Reseller, EpgSource } from '../types';
 
 export const DEFAULT_ADMIN_USER: AdminUser = {
   id: 'adm-1',
@@ -293,3 +293,73 @@ export const DEFAULT_ANDROID_CONFIG: AndroidAppConfig = {
   enableTvInterface: true,
   splashBgColor: '#0F172A'
 };
+
+export const INITIAL_RESELLERS: Reseller[] = [
+  {
+    id: 'res-1',
+    name: 'Roberto Vendas IPTV',
+    email: 'roberto.vendas@email.com',
+    phone: '+55 11 97777-6666',
+    username: 'robertovendas',
+    plainPassword: 'reseller123',
+    credits: 50,
+    pricePerCredit: 8.50,
+    customersCount: 12,
+    status: 'active',
+    createdAt: '2026-06-10 14:30',
+    lastLogin: '2026-08-05 10:15',
+    notes: 'Revendedor Master da região SP. Pagamentos via chave PIX.'
+  },
+  {
+    id: 'res-2',
+    name: 'Lucas Streaming Soluções',
+    email: 'lucas.streaming@email.com',
+    phone: '+55 21 98888-5555',
+    username: 'lucas_stream',
+    plainPassword: 'streamreseller',
+    credits: 15,
+    pricePerCredit: 10.00,
+    customersCount: 5,
+    status: 'active',
+    createdAt: '2026-07-01 09:00',
+    lastLogin: '2026-08-04 18:22',
+    notes: 'Sub-revendedor focado em Smart TVs LG & Samsung.'
+  },
+  {
+    id: 'res-3',
+    name: 'Juliana Telecom',
+    email: 'juliana.telecom@email.com',
+    phone: '+55 31 99111-2233',
+    username: 'julianatelecom',
+    plainPassword: 'julianapassword',
+    credits: 0,
+    pricePerCredit: 12.00,
+    customersCount: 2,
+    status: 'suspended',
+    createdAt: '2026-05-15 11:20',
+    lastLogin: '2026-07-20 16:40',
+    notes: 'Conta temporariamente suspensa por falta de renovação de créditos.'
+  }
+];
+
+export const INITIAL_EPG_SOURCES: EpgSource[] = [
+  {
+    id: 'epg-1',
+    name: 'Guia XMLTV Brasil & Latino (Sinal Principal)',
+    url: 'https://playstream.lat/xmltv.php',
+    channelsCount: 280,
+    lastSync: '2026-08-05 12:00',
+    status: 'active',
+    autoUpdate: true
+  },
+  {
+    id: 'epg-2',
+    name: 'EPG Esportes & Canais Premium 24/7',
+    url: 'https://epg.playstream.lat/sports_pt.xml.gz',
+    channelsCount: 145,
+    lastSync: '2026-08-05 08:30',
+    status: 'active',
+    autoUpdate: true
+  }
+];
+

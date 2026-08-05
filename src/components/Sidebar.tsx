@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   Users,
+  UserCheck,
   Clock,
   CreditCard,
   ListVideo,
@@ -14,7 +15,9 @@ import {
   ChevronRight,
   Database,
   Lock,
-  Globe
+  Globe,
+  Calendar,
+  Coins
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -25,6 +28,7 @@ interface SidebarProps {
     activeClients: number;
     trials: number;
     playlists: number;
+    resellers?: number;
   };
 }
 
@@ -42,6 +46,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, count
       label: 'Clientes',
       icon: Users,
       badge: counts.clients,
+      section: 'GESTÃO'
+    },
+    {
+      id: 'resellers',
+      label: 'Revendedores (Master)',
+      icon: UserCheck,
+      badge: counts.resellers || 3,
       section: 'GESTÃO'
     },
     {
@@ -63,6 +74,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, count
       label: 'Playlists M3U',
       icon: ListVideo,
       badge: counts.playlists,
+      section: 'CONTEÚDO'
+    },
+    {
+      id: 'epg',
+      label: 'Gerador & Agregador EPG',
+      icon: Calendar,
+      badge: 'XMLTV',
       section: 'CONTEÚDO'
     },
     {

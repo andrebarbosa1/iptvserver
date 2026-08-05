@@ -9,7 +9,9 @@ import {
   SystemLog,
   SystemSettings,
   AdminUser,
-  AdminSession
+  AdminSession,
+  Reseller,
+  EpgSource
 } from './types';
 import {
   INITIAL_CUSTOMERS,
@@ -20,7 +22,9 @@ import {
   INITIAL_LOGS,
   DEFAULT_SETTINGS,
   DEFAULT_ADMIN_USER,
-  SAMPLE_PLAYLIST_ITEMS
+  SAMPLE_PLAYLIST_ITEMS,
+  INITIAL_RESELLERS,
+  INITIAL_EPG_SOURCES
 } from './data/initialData';
 import { isFirebaseConfigured } from './lib/firebase';
 import {
@@ -61,6 +65,8 @@ import { WhiteLabelSettingsView } from './components/WhiteLabelSettingsView';
 import { NetworkSettingsView } from './components/NetworkSettingsView';
 import { LogsView } from './components/LogsView';
 import { AdminAuthView } from './components/AdminAuthView';
+import { ResellersView } from './components/ResellersView';
+import { EpgManagerView } from './components/EpgManagerView';
 
 const loadSavedData = <T,>(key: string, fallback: T): T => {
   try {
@@ -106,6 +112,8 @@ export default function App() {
   });
   const [logs, setLogs] = useState<SystemLog[]>(() => loadSavedData('streamflow_logs', INITIAL_LOGS));
   const [settings, setSettings] = useState<SystemSettings>(() => loadSavedData('streamflow_settings', DEFAULT_SETTINGS));
+  const [resellers, setResellers] = useState<Reseller[]>(() => loadSavedData('streamflow_resellers', INITIAL_RESELLERS));
+  const [epgSources, setEpgSources] = useState<EpgSource[]>(() => loadSavedData('streamflow_epg_sources', INITIAL_EPG_SOURCES));
 
   // Player active item state
   const [playerItem, setPlayerItem] = useState<PlaylistItem | null>(SAMPLE_PLAYLIST_ITEMS[0] || null);
@@ -513,6 +521,61 @@ export default function App() {
     setActiveTab('player');
   };
 
+  // Resellers Handlers
+  const handleSaveReseller = (newReseller: Reseller) => {
+    const updated = [newReseller, ...resellers];
+    setResellers(updated);
+    localStorage.setItem('streamflow_resellers', JSON.stringify(updated));
+    addLog('RESELLER_CREATED', `Novo revendedor ${newReseller.name} (${newReseller.username}) cadastrado.`);
+  };
+
+  const handleUpdateReseller = (id: string, partial: Partial<Reseller>) => {
+    const updated = resellers.map(r => (r.id === id ? { ...r, ...partial } : r));
+    setResellers(updated);
+    localStorage.setItem('streamflow_resellers', JSON.stringify(updated));
+    addLog('RESELLER_UPDATED', `Dados do revendedor ID ${id} alterados.`);
+  };
+
+  const handleDeleteReseller = (id: string) => {
+    const updated = resellers.filter(r => r.id !== id);
+    setResellers(updated);
+    localStorage.setItem('streamflow_resellers', JSON.stringify(updated));
+    addLog('RESELLER_DELETED', `Revendedor ID ${id} removido.`);
+  };
+
+  const handleRechargeResellerCredits = (id: string, amount: number) => {
+    const updated = resellers.map(r => (r.id === id ? { ...r, credits: (r.credits || 0) + amount } : r));
+    setResellers(updated);
+    localStorage.setItem('streamflow_resellers', JSON.stringify(updated));
+    addLog('RESELLER_CREDITS_RECHARGED', `${amount} créditos adicionados ao revendedor ID ${id}.`);
+  };
+
+  // EPG Handlers
+  const handleAddEpgSource = (source: EpgSource) => {
+    const updated = [source, ...epgSources];
+    setEpgSources(updated);
+    localStorage.setItem('streamflow_epg_sources', JSON.stringify(updated));
+    addLog('EPG_SOURCE_ADDED', `Nova fonte EPG ${source.name} adicionada.`);
+  };
+
+  const handleDeleteEpgSource = (id: string) => {
+    const updated = epgSources.filter(e => e.id !== id);
+    setEpgSources(updated);
+    localStorage.setItem('streamflow_epg_sources', JSON.stringify(updated));
+    addLog('EPG_SOURCE_DELETED', `Fonte EPG ID ${id} removida.`);
+  };
+
+  const handleSyncEpgSources = () => {
+    const updated = epgSources.map(s => ({
+      ...s,
+      lastSync: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: 'active' as const
+    }));
+    setEpgSources(updated);
+    localStorage.setItem('streamflow_epg_sources', JSON.stringify(updated));
+    addLog('EPG_SOURCES_SYNCED', 'Todas as fontes EPG foram sincronizadas.');
+  };
+
   return (
     <div className={`min-h-screen ${settings.theme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-900'} font-sans flex flex-col transition-colors`}>
       {/* Top Navigation */}
@@ -538,7 +601,8 @@ export default function App() {
             clients: customers.length,
             activeClients: customers.filter(c => c.status === 'active').length,
             trials: trials.filter(t => t.status === 'active').length,
-            playlists: playlists.length
+            playlists: playlists.length,
+            resellers: resellers.length
           }}
         />
 
@@ -579,6 +643,27 @@ export default function App() {
                   onDeleteCustomer={handleDeleteCustomer}
                   onTestLineInPlayer={handleTestLineInPlayer}
                   onClearAllData={handleClearAllData}
+                />
+              )}
+
+              {activeTab === 'resellers' && (
+                <ResellersView
+                  resellers={resellers}
+                  customers={customers}
+                  onSaveReseller={handleSaveReseller}
+                  onUpdateReseller={handleUpdateReseller}
+                  onDeleteReseller={handleDeleteReseller}
+                  onRechargeCredits={handleRechargeResellerCredits}
+                />
+              )}
+
+              {activeTab === 'epg' && (
+                <EpgManagerView
+                  epgSources={epgSources}
+                  playlists={playlists}
+                  onAddEpgSource={handleAddEpgSource}
+                  onDeleteEpgSource={handleDeleteEpgSource}
+                  onSyncEpgSources={handleSyncEpgSources}
                 />
               )}
 
