@@ -6,8 +6,8 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   // CORS for external Android apps or Web Player connections
   app.use((req, res, next) => {
@@ -45,6 +45,51 @@ async function startServer() {
     }
   });
 
+  // In-memory store for synced playlists and customers from UI
+  let syncedPlaylists: any[] = [];
+  let syncedCustomers: any[] = [];
+
+  // Sync API Endpoint
+  app.post(['/api/v1/sync_playlists', '/api/sync_playlists'], (req: Request, res: Response) => {
+    if (Array.isArray(req.body?.playlists)) {
+      syncedPlaylists = req.body.playlists;
+    }
+    if (Array.isArray(req.body?.customers)) {
+      syncedCustomers = req.body.customers;
+    }
+    res.json({
+      status: 'ok',
+      playlistsCount: syncedPlaylists.length,
+      customersCount: syncedCustomers.length,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Helper to get active channels list
+  const getAllSyncedItems = (): { items: any[]; categoriesMap: Map<string, string>; categoriesList: { category_id: string; category_name: string; parent_id: number }[] } => {
+    let allItems: any[] = [];
+    syncedPlaylists.forEach(pl => {
+      if (Array.isArray(pl.items) && pl.items.length > 0) {
+        allItems.push(...pl.items);
+      }
+    });
+
+    const categoriesMap = new Map<string, string>();
+    const categoriesList: { category_id: string; category_name: string; parent_id: number }[] = [];
+    let catCounter = 1;
+
+    allItems.forEach(item => {
+      const gTitle = item.groupTitle || 'Canais Principais';
+      if (!categoriesMap.has(gTitle)) {
+        const catId = String(catCounter++);
+        categoriesMap.set(gTitle, catId);
+        categoriesList.push({ category_id: catId, category_name: gTitle, parent_id: 0 });
+      }
+    });
+
+    return { items: allItems, categoriesMap, categoriesList };
+  };
+
   // Helper to determine active DNS URL
   const resolveBaseDns = (req: Request): string => {
     const customDns = (req.query.dns || req.query.dns_url || req.query.sys_dns || req.body?.dns_url || req.headers['x-system-dns']) as string;
@@ -56,28 +101,20 @@ async function startServer() {
     return `${protocol}://${forwardedHost}`;
   };
 
-  // M3U Playlist Generator Helper
+  // M3U Playlist Generator Helper using dynamic synced items
   const buildM3uPlaylist = (username: string, password: string, baseUrl: string): string => {
-    return `#EXTM3U x-tvg-url="${baseUrl}/epg.xml.gz"
+    const { items } = getAllSyncedItems();
+    let m3u = `#EXTM3U x-tvg-url="${baseUrl}/epg.xml.gz"\n\n`;
 
-#EXTINF:-1 tvg-id="NASA" tvg-name="NASA TV" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg" group-title="Ao Vivo - Ciência",NASA TV Official HD
-${baseUrl}/live/${username}/${password}/101.m3u8
+    items.forEach((item, idx) => {
+      const streamId = 100 + idx;
+      const type = item.category === 'movie' ? 'movie' : 'live';
+      const ext = item.category === 'movie' ? '.mp4' : '.m3u8';
+      m3u += `#EXTINF:-1 tvg-id="${item.id || streamId}" tvg-name="${item.title}" tvg-logo="${item.logoUrl || ''}" group-title="${item.groupTitle || 'Ao Vivo'}",${item.title}\n`;
+      m3u += `${baseUrl}/${type}/${username}/${password}/${streamId}${ext}\n\n`;
+    });
 
-#EXTINF:-1 tvg-id="DW" tvg-name="DW News" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/7/75/Deutsche_Welle_symbol_2012.svg" group-title="Ao Vivo - Notícias",DW News Live 24/7
-${baseUrl}/live/${username}/${password}/102.m3u8
-
-#EXTINF:-1 tvg-id="REDBULL" tvg-name="Red Bull TV" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/f/ff/Red_Bull_Logo.svg" group-title="Ao Vivo - Esportes",Red Bull TV Action Sports
-${baseUrl}/live/${username}/${password}/103.m3u8
-
-#EXTINF:-1 tvg-id="FRANCE24" tvg-name="France 24" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c2/France_24_logo.svg" group-title="Ao Vivo - Notícias",France 24 English
-${baseUrl}/live/${username}/${password}/104.m3u8
-
-#EXTINF:-1 tvg-id="BBB" tvg-name="Big Buck Bunny" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg" group-title="Filmes - Animação",Big Buck Bunny (4K Ultra HD)
-${baseUrl}/movie/${username}/${password}/201.mp4
-
-#EXTINF:-1 tvg-id="SINTEL" tvg-name="Sintel" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/8/8f/Sintel_poster.jpg" group-title="Filmes - Fantasia",Sintel (Open Source Movie 1080p)
-${baseUrl}/movie/${username}/${password}/202.mp4
-`;
+    return m3u;
   };
 
   // Xtream M3U Endpoint: /get.php (GET & POST)
@@ -148,115 +185,126 @@ ${baseUrl}/movie/${username}/${password}/202.mp4
     const host = req.headers.host || 'localhost:3000';
     const protocol = req.protocol || 'http';
 
+    const { items, categoriesMap, categoriesList } = getAllSyncedItems();
+
     // 1. Live Categories for XCIPTV
     if (action === 'get_live_categories') {
-      return res.json([
-        { category_id: '1', category_name: 'Ao Vivo - Notícias & Ciência', parent_id: 0 },
-        { category_id: '2', category_name: 'Ao Vivo - Esportes', parent_id: 0 }
-      ]);
+      const liveCategories = categoriesList.filter(cat => {
+        const catNameLower = cat.category_name.toLowerCase();
+        return !catNameLower.includes('filme') && !catNameLower.includes('vod') && !catNameLower.includes('série') && !catNameLower.includes('series');
+      });
+      return res.json(liveCategories.length > 0 ? liveCategories : categoriesList);
     }
 
     // 2. Live Streams list for XCIPTV
     if (action === 'get_live_streams') {
       const catId = (req.query.category_id || req.body?.category_id || '') as string;
-      const allStreams = [
-        {
-          num: 1,
-          name: 'NASA TV Official HD',
+      const liveItems = items.filter(it => it.category !== 'movie' && it.category !== 'series');
+
+      const streams = liveItems.map((item, idx) => {
+        const streamId = 100 + idx;
+        const gTitle = item.groupTitle || 'Canais Principais';
+        const itemCatId = categoriesMap.get(gTitle) || '1';
+        return {
+          num: idx + 1,
+          name: item.title,
           stream_type: 'live',
-          stream_id: 101,
-          stream_icon: 'https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg',
-          epg_channel_id: 'NASA',
+          stream_id: streamId,
+          stream_icon: item.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=100',
+          epg_channel_id: item.id || `ch-${streamId}`,
           added: '1672531200',
-          category_id: '1',
+          category_id: itemCatId,
           custom_sid: '',
           tv_archive: 0,
-          direct_source: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-TV-v1/master.m3u8',
+          direct_source: item.streamUrl,
           tv_archive_duration: 0
-        },
-        {
-          num: 2,
-          name: 'DW News English 24/7',
-          stream_type: 'live',
-          stream_id: 102,
-          stream_icon: 'https://upload.wikimedia.org/wikipedia/commons/7/75/Deutsche_Welle_symbol_2012.svg',
-          epg_channel_id: 'DW',
-          added: '1672531200',
-          category_id: '1',
-          custom_sid: '',
-          tv_archive: 0,
-          direct_source: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8',
-          tv_archive_duration: 0
-        },
-        {
-          num: 3,
-          name: 'Red Bull TV Action Sports',
-          stream_type: 'live',
-          stream_id: 103,
-          stream_icon: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Red_Bull_Logo.svg',
-          epg_channel_id: 'REDBULL',
-          added: '1672531200',
-          category_id: '2',
-          custom_sid: '',
-          tv_archive: 0,
-          direct_source: 'https://rbmn-live.akamaized.net/hls/live/591070/FLI-RBTV-GLOBAL/master.m3u8',
-          tv_archive_duration: 0
-        }
-      ];
+        };
+      });
 
       if (catId) {
-        return res.json(allStreams.filter(s => s.category_id === catId));
+        return res.json(streams.filter(s => s.category_id === catId));
       }
-      return res.json(allStreams);
+      return res.json(streams);
     }
 
     // 3. VOD / Movie Categories for XCIPTV
     if (action === 'get_vod_categories') {
-      return res.json([
-        { category_id: '10', category_name: 'Filmes - Animação & Fantasia', parent_id: 0 }
+      const vodCategories = categoriesList.filter(cat => {
+        const catNameLower = cat.category_name.toLowerCase();
+        return catNameLower.includes('filme') || catNameLower.includes('vod') || catNameLower.includes('movie');
+      });
+      return res.json(vodCategories.length > 0 ? vodCategories : [
+        { category_id: '10', category_name: 'Filmes & VODs', parent_id: 0 }
       ]);
     }
 
     // 4. VOD / Movie Streams for XCIPTV
     if (action === 'get_vod_streams') {
-      return res.json([
-        {
-          num: 1,
-          name: 'Big Buck Bunny (4K)',
+      const vodItems = items.filter(it => {
+        if (it.category === 'movie') return true;
+        const gLower = (it.groupTitle || '').toLowerCase();
+        return gLower.includes('filme') || gLower.includes('vod') || gLower.includes('movie');
+      });
+
+      const streams = vodItems.map((item, idx) => {
+        const streamId = 200 + idx;
+        const gTitle = item.groupTitle || 'Filmes & VODs';
+        const itemCatId = categoriesMap.get(gTitle) || '10';
+        return {
+          num: idx + 1,
+          name: item.title,
           stream_type: 'movie',
-          stream_id: 201,
-          stream_icon: 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg',
+          stream_id: streamId,
+          stream_icon: item.logoUrl || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=100',
           added: '1672531200',
-          category_id: '10',
+          category_id: itemCatId,
           container_extension: 'mp4',
           custom_sid: '',
-          direct_source: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-        },
-        {
-          num: 2,
-          name: 'Sintel (Open Source Movie)',
-          stream_type: 'movie',
-          stream_id: 202,
-          stream_icon: 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Sintel_poster.jpg',
-          added: '1672531200',
-          category_id: '10',
-          container_extension: 'mp4',
-          custom_sid: '',
-          direct_source: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8'
-        }
-      ]);
+          direct_source: item.streamUrl
+        };
+      });
+      return res.json(streams);
     }
 
     // 5. Series Categories
     if (action === 'get_series_categories') {
-      return res.json([
+      const seriesCategories = categoriesList.filter(cat => {
+        const catNameLower = cat.category_name.toLowerCase();
+        return catNameLower.includes('série') || catNameLower.includes('series');
+      });
+      return res.json(seriesCategories.length > 0 ? seriesCategories : [
         { category_id: '20', category_name: 'Séries Principais', parent_id: 0 }
       ]);
     }
 
     // 6. Series Streams
     if (action === 'get_series_streams') {
-      return res.json([]);
+      const seriesItems = items.filter(it => {
+        if (it.category === 'series') return true;
+        const gLower = (it.groupTitle || '').toLowerCase();
+        return gLower.includes('série') || gLower.includes('series');
+      });
+
+      const streams = seriesItems.map((item, idx) => {
+        const streamId = 300 + idx;
+        const gTitle = item.groupTitle || 'Séries Principais';
+        const itemCatId = categoriesMap.get(gTitle) || '20';
+        return {
+          num: idx + 1,
+          name: item.title,
+          series_id: streamId,
+          cover: item.logoUrl || '',
+          plot: 'Série cadastrada no painel StreamFlow',
+          cast: '',
+          director: '',
+          genre: gTitle,
+          releaseDate: '2026',
+          last_modified: '1672531200',
+          rating: '5',
+          category_id: itemCatId
+        };
+      });
+      return res.json(streams);
     }
 
     // 7. EPG / Short EPG for XCIPTV
@@ -266,12 +314,12 @@ ${baseUrl}/movie/${username}/${password}/202.mp4
           {
             id: '1',
             epg_id: '101',
-            title: 'Transmissão Ao Vivo NASA HD',
-            lang: 'en',
+            title: 'Transmissão Ao Vivo StreamFlow HD',
+            lang: 'pt',
             start: '2026-08-04 00:00:00',
             end: '2026-08-05 00:00:00',
-            description: 'Programação de espaço, lançamento de foguetes e transmissões da ISS.',
-            channel_id: 'NASA',
+            description: 'Programação de TV ao Vivo e Canais HLS / M3U8.',
+            channel_id: '101',
             start_timestamp: Math.floor(Date.now() / 1000) - 3600,
             stop_timestamp: Math.floor(Date.now() / 1000) + 86400
           }
@@ -313,35 +361,57 @@ ${baseUrl}/movie/${username}/${password}/202.mp4
     res.setHeader('Content-Type', 'text/xml; charset=utf-8');
     res.send(`<?xml font="1.0" encoding="UTF-8"?>
 <tv generator-info-name="StreamFlow EPG Generator">
-  <channel id="NASA">
-    <display-name>NASA TV Official HD</display-name>
+  <channel id="101">
+    <display-name>Canal Ao Vivo HD</display-name>
   </channel>
-  <programme start="20260804000000 +0000" stop="20260805000000 +0000" channel="NASA">
-    <title lang="pt">NASA Space Station Live</title>
-    <desc lang="pt">Transmissão em direto da Estação Espacial Internacional e Exploração Espacial.</desc>
+  <programme start="20260804000000 +0000" stop="20260805000000 +0000" channel="101">
+    <title lang="pt">Programação em Tempo Real</title>
+    <desc lang="pt">Sinal de TV ao Vivo e grade de programação sincronizada.</desc>
   </programme>
 </tv>`);
   });
 
   // Stream Player Proxy / Redirect endpoints for XCIPTV video playback
   app.all(['/live/:user/:pass/:id', '/live/:id'], (req: Request, res: Response) => {
-    const id = req.params.id || '';
-    if (id.includes('102')) {
-      return res.redirect('https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8');
+    const rawId = req.params.id || '';
+    const cleanId = rawId.replace(/\.(m3u8|ts|mp4|mkv)$/i, '');
+    const numId = parseInt(cleanId, 10);
+    const { items } = getAllSyncedItems();
+
+    if (!isNaN(numId)) {
+      const index = numId >= 100 ? numId - 100 : numId - 1;
+      if (items[index] && items[index].streamUrl) {
+        return res.redirect(items[index].streamUrl);
+      }
     }
-    if (id.includes('103')) {
-      return res.redirect('https://rbmn-live.akamaized.net/hls/live/591070/FLI-RBTV-GLOBAL/master.m3u8');
+
+    const found = items.find(it => it.id === cleanId);
+    if (found && found.streamUrl) {
+      return res.redirect(found.streamUrl);
     }
-    // Default NASA TV
-    return res.redirect('https://ntv1.akamaized.net/hls/live/2014075/NASA-TV-v1/master.m3u8');
+
+    return res.status(404).send('Canal ao vivo não encontrado ou sem canais cadastrados.');
   });
 
   app.all(['/movie/:user/:pass/:id', '/movie/:id', '/series/:user/:pass/:id', '/series/:id'], (req: Request, res: Response) => {
-    const id = req.params.id || '';
-    if (id.includes('202')) {
-      return res.redirect('https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8');
+    const rawId = req.params.id || '';
+    const cleanId = rawId.replace(/\.(m3u8|ts|mp4|mkv)$/i, '');
+    const numId = parseInt(cleanId, 10);
+    const { items } = getAllSyncedItems();
+
+    if (!isNaN(numId)) {
+      const index = numId >= 200 ? numId - 200 : numId - 1;
+      if (items[index] && items[index].streamUrl) {
+        return res.redirect(items[index].streamUrl);
+      }
     }
-    return res.redirect('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8');
+
+    const found = items.find(it => it.id === cleanId);
+    if (found && found.streamUrl) {
+      return res.redirect(found.streamUrl);
+    }
+
+    return res.status(404).send('Conteúdo VOD não encontrado ou sem conteúdos cadastrados.');
   });
 
   // Vite middleware setup for development/production
@@ -364,4 +434,7 @@ ${baseUrl}/movie/${username}/${password}/202.mp4
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Erro ao iniciar o servidor StreamFlow:', err);
+  process.exit(1);
+});

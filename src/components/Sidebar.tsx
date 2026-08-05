@@ -87,13 +87,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, count
       section: 'DESENVOLVIMENTO'
     },
     {
-      id: 'php',
-      label: 'Instalador & PHP 8.3',
-      icon: Database,
-      badge: 'MVC',
-      section: 'DESENVOLVIMENTO'
-    },
-    {
       id: 'admin',
       label: 'Acesso Admin & 2FA',
       icon: Lock,

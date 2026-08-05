@@ -14,109 +14,20 @@ export const DEFAULT_ADMIN_USER: AdminUser = {
   createdAt: '2026-01-01 00:00:00'
 };
 
-export const SAMPLE_PLAYLIST_ITEMS: PlaylistItem[] = [
-  {
-    id: 'ch-1',
-    title: 'NASA TV Official HD',
-    groupTitle: 'Ao Vivo - Ciência & Notícias',
-    streamUrl: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-TV-v1/master.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg',
-    category: 'live',
-    tvgName: 'NASA TV',
-    epgProgram: 'Live ISS Feed & Astronomy News'
-  },
-  {
-    id: 'ch-2',
-    title: 'DW News English 24/7',
-    groupTitle: 'Ao Vivo - Notícias Internacionais',
-    streamUrl: 'https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/75/Deutsche_Welle_symbol_2012.svg',
-    category: 'live',
-    tvgName: 'DW News',
-    epgProgram: 'Global News Hour & Documentaries'
-  },
-  {
-    id: 'ch-3',
-    title: 'Red Bull TV Sports & Action',
-    groupTitle: 'Ao Vivo - Esportes',
-    streamUrl: 'https://rbmn-live.akamaized.net/hls/live/591070/FLI-RBTV-GLOBAL/master.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Red_Bull_Logo.svg',
-    category: 'live',
-    tvgName: 'Red Bull TV',
-    epgProgram: 'X-Games & Extreme Sports Live'
-  },
-  {
-    id: 'ch-4',
-    title: 'France 24 English Live',
-    groupTitle: 'Ao Vivo - Notícias Internacionais',
-    streamUrl: 'https://static.france24.com/live/F24_EN_LO_HLS/live_tv.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c2/France_24_logo.svg',
-    category: 'live',
-    tvgName: 'France 24',
-    epgProgram: 'World News Bulletin'
-  },
-  {
-    id: 'vod-1',
-    title: 'Big Buck Bunny (4K Ultra HD)',
-    groupTitle: 'Filmes - Animação',
-    streamUrl: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg',
-    category: 'movie',
-    epgProgram: 'Animação 3D Clássica Open Source (2008)'
-  },
-  {
-    id: 'vod-2',
-    title: 'Sintel (Animação Open Source 1080p)',
-    groupTitle: 'Filmes - Fantasia',
-    streamUrl: 'https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/8/8f/Sintel_poster.jpg',
-    category: 'movie',
-    epgProgram: 'Curta-metragem de Fantasia do Blender Foundation'
-  },
-  {
-    id: 'vod-3',
-    title: 'Tears of Steel (Sci-Fi 4K)',
-    groupTitle: 'Filmes - Ficção Científica',
-    streamUrl: 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Tears_of_Steel_poster.jpg',
-    category: 'movie',
-    epgProgram: 'Ficção Científica Pós-Apocalíptica'
-  },
-  {
-    id: 'ser-1',
-    title: 'Cosmos & Universo S01E01 - Origens',
-    groupTitle: 'Séries - Documentário',
-    streamUrl: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-TV-v1/master.m3u8',
-    logoUrl: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=300&q=80',
-    category: 'series',
-    epgProgram: 'Episódio 1: A imensidão do cosmos'
-  }
-];
+export const SAMPLE_PLAYLIST_ITEMS: PlaylistItem[] = [];
 
 export const INITIAL_PLAYLISTS: Playlist[] = [
   {
     id: 'pl-1',
-    name: 'Lista VIP Premium 4K Autorizada',
+    name: 'Lista Principal M3U',
     m3uUrl: 'https://www.playstream.lat/get.php?username=carlossilva&password=password123',
     category: 'Canais Abertos, Esportes, Filmes & Séries',
-    itemCount: SAMPLE_PLAYLIST_ITEMS.length,
-    lastUpdated: '2026-08-03 10:30',
+    itemCount: 0,
+    lastUpdated: '2026-08-05 12:00',
     status: 'active',
     autoUpdate: true,
     updateIntervalHours: 12,
-    items: SAMPLE_PLAYLIST_ITEMS
-  },
-  {
-    id: 'pl-2',
-    name: 'Lista Filmes & Documentários VOD',
-    m3uUrl: 'https://www.playstream.lat/get.php?username=voduser&password=vodpass123',
-    category: 'VOD Filmes & Séries HD',
-    itemCount: 3,
-    lastUpdated: '2026-08-02 18:15',
-    status: 'active',
-    autoUpdate: true,
-    updateIntervalHours: 24,
-    items: SAMPLE_PLAYLIST_ITEMS.filter(i => i.category !== 'live')
+    items: []
   }
 ];
 

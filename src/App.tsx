@@ -57,7 +57,6 @@ import { PlaylistsView } from './components/PlaylistsView';
 import { WebPlayerView } from './components/WebPlayerView';
 import { AndroidAppView } from './components/AndroidAppView';
 import { ApiDocsView } from './components/ApiDocsView';
-import { PhpInstallerExplorer } from './components/PhpInstallerExplorer';
 import { WhiteLabelSettingsView } from './components/WhiteLabelSettingsView';
 import { NetworkSettingsView } from './components/NetworkSettingsView';
 import { LogsView } from './components/LogsView';
@@ -90,12 +89,26 @@ export default function App() {
   const [trials, setTrials] = useState<Trial[]>(() => loadSavedData('streamflow_trials', INITIAL_TRIALS));
   const [plans, setPlans] = useState<Plan[]>(() => loadSavedData('streamflow_plans', INITIAL_PLANS));
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => loadSavedData('streamflow_subscriptions', INITIAL_SUBSCRIPTIONS));
-  const [playlists, setPlaylists] = useState<Playlist[]>(() => loadSavedData('streamflow_playlists', INITIAL_PLAYLISTS));
+  const [playlists, setPlaylists] = useState<Playlist[]>(() => {
+    const raw = loadSavedData('streamflow_playlists', INITIAL_PLAYLISTS);
+    return raw.map((pl: Playlist) => ({
+      ...pl,
+      items: (pl.items || []).filter((item: PlaylistItem) =>
+        !['ch-1', 'ch-2', 'ch-3', 'ch-4', 'vod-1', 'vod-2', 'vod-3', 'ser-1', '101', '102', '103', '201', '202'].includes(item.id) &&
+        !item.title?.toLowerCase().includes('nasa tv') &&
+        !item.title?.toLowerCase().includes('dw news') &&
+        !item.title?.toLowerCase().includes('red bull tv') &&
+        !item.title?.toLowerCase().includes('big buck bunny') &&
+        !item.title?.toLowerCase().includes('sintel') &&
+        !item.title?.toLowerCase().includes('france 24')
+      )
+    }));
+  });
   const [logs, setLogs] = useState<SystemLog[]>(() => loadSavedData('streamflow_logs', INITIAL_LOGS));
   const [settings, setSettings] = useState<SystemSettings>(() => loadSavedData('streamflow_settings', DEFAULT_SETTINGS));
 
   // Player active item state
-  const [playerItem, setPlayerItem] = useState<PlaylistItem | null>(SAMPLE_PLAYLIST_ITEMS[0]);
+  const [playerItem, setPlayerItem] = useState<PlaylistItem | null>(SAMPLE_PLAYLIST_ITEMS[0] || null);
   const [playerCustomer, setPlayerCustomer] = useState<Customer | null>(null);
 
   // Admin User & Session Security State
@@ -228,7 +241,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('streamflow_initialized', 'true');
     localStorage.setItem('streamflow_playlists', JSON.stringify(playlists));
-  }, [playlists]);
+
+    // Sync active playlists & channels with backend Node server for XCIPTV / Xtream API
+    fetch('/api/v1/sync_playlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playlists, customers })
+    }).catch(() => {});
+  }, [playlists, customers]);
 
   useEffect(() => {
     localStorage.setItem('streamflow_initialized', 'true');
@@ -603,8 +623,6 @@ export default function App() {
               {activeTab === 'android' && <AndroidAppView />}
 
               {activeTab === 'api' && <ApiDocsView settings={settings} />}
-
-              {activeTab === 'php' && <PhpInstallerExplorer />}
 
               {activeTab === 'settings' && (
                 <WhiteLabelSettingsView
