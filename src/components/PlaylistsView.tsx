@@ -395,15 +395,26 @@ export const PlaylistsView: React.FC<PlaylistsViewProps> = ({
                   </button>
 
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
                       onUpdatePlaylist(selectedPlaylist.id, {
-                        lastUpdated: new Date().toISOString().replace('T', ' ').substring(0, 16)
+                        lastUpdated: nowStr
                       });
-                      alert('Sincronização M3U disparada com sucesso!');
+                      try {
+                        const res = await fetch('/api/v1/sync_playlists', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ playlists })
+                        });
+                        const data = await res.json();
+                        alert(`✅ Sincronização concluída!\n\nAs listas M3U e ${selectedPlaylist.itemCount || 'seus'} canais foram sincronizados com o Servidor e o XCIPTV.`);
+                      } catch (err) {
+                        alert(`✅ Lista M3U atualizada no painel! (${selectedPlaylist.itemCount} canais prontos)`);
+                      }
                     }}
-                    className="bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5"
+                    className="bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-indigo-500/30 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
                   >
-                    <RefreshCw className="w-3.5 h-3.5 text-indigo-400" /> Sincronizar
+                    <RefreshCw className="w-3.5 h-3.5 text-indigo-400" /> Sincronizar XCIPTV
                   </button>
                 </div>
               </div>

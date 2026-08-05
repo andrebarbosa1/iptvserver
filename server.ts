@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 
 async function startServer() {
@@ -45,9 +46,43 @@ async function startServer() {
     }
   });
 
-  // In-memory store for synced playlists and customers from UI
+  // Persistence files to survive server restarts & serverless statelessness
+  const SYNC_CACHE_FILES = [
+    path.join(process.cwd(), 'streamflow_synced.json'),
+    '/tmp/streamflow_synced.json'
+  ];
+
   let syncedPlaylists: any[] = [];
   let syncedCustomers: any[] = [];
+
+  // Load persistence cache from disk on boot
+  for (const file of SYNC_CACHE_FILES) {
+    try {
+      if (fs.existsSync(file)) {
+        const raw = fs.readFileSync(file, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.playlists) && parsed.playlists.length > 0) {
+          syncedPlaylists = parsed.playlists;
+        }
+        if (Array.isArray(parsed.customers) && parsed.customers.length > 0) {
+          syncedCustomers = parsed.customers;
+        }
+      }
+    } catch (err) {
+      console.warn(`[StreamFlow] Warning reading persistence cache ${file}:`, err);
+    }
+  }
+
+  const saveSyncedCache = () => {
+    const payload = JSON.stringify({ playlists: syncedPlaylists, customers: syncedCustomers, updatedAt: new Date().toISOString() });
+    SYNC_CACHE_FILES.forEach(file => {
+      try {
+        fs.writeFileSync(file, payload, 'utf-8');
+      } catch (e) {
+        // Ignore write failures on read-only dirs
+      }
+    });
+  };
 
   // Sync API Endpoint
   app.post(['/api/v1/sync_playlists', '/api/sync_playlists'], (req: Request, res: Response) => {
@@ -57,6 +92,7 @@ async function startServer() {
     if (Array.isArray(req.body?.customers)) {
       syncedCustomers = req.body.customers;
     }
+    saveSyncedCache();
     res.json({
       status: 'ok',
       playlistsCount: syncedPlaylists.length,
@@ -65,14 +101,114 @@ async function startServer() {
     });
   });
 
-  // Helper to get active channels list
-  const getAllSyncedItems = (): { items: any[]; categoriesMap: Map<string, string>; categoriesList: { category_id: string; category_name: string; parent_id: number }[] } => {
+  // Helper M3U Parser for remote playlists
+  const parseM3UText = (rawText: string): any[] => {
+    const lines = rawText.split(/\r?\n/);
+    const items: any[] = [];
+    let currentItem: any = {};
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('#EXTINF:')) {
+        currentItem = {};
+        const logoMatch = line.match(/tvg-logo="([^"]+)"/i);
+        if (logoMatch) currentItem.logoUrl = logoMatch[1];
+
+        const groupMatch = line.match(/group-title="([^"]+)"/i);
+        currentItem.groupTitle = groupMatch ? groupMatch[1] : 'Canais Principais';
+
+        const commaIndex = line.indexOf(',');
+        if (commaIndex !== -1) {
+          currentItem.title = line.substring(commaIndex + 1).trim();
+        } else {
+          currentItem.title = 'Canal Desconhecido';
+        }
+
+        const lowerGroup = (currentItem.groupTitle || '').toLowerCase();
+        if (lowerGroup.includes('filme') || lowerGroup.includes('vod') || lowerGroup.includes('movie')) {
+          currentItem.category = 'movie';
+        } else if (lowerGroup.includes('série') || lowerGroup.includes('series')) {
+          currentItem.category = 'series';
+        } else {
+          currentItem.category = 'live';
+        }
+      } else if (line.startsWith('#EXTGRP:')) {
+        currentItem.groupTitle = line.replace('#EXTGRP:', '').trim();
+      } else if (line && !line.startsWith('#')) {
+        if (line.startsWith('http://') || line.startsWith('https://') || line.startsWith('rtmp://') || line.startsWith('ace://')) {
+          currentItem.streamUrl = line;
+          currentItem.id = `m3u-${items.length + 1}`;
+          if (currentItem.title && currentItem.streamUrl) {
+            items.push({
+              id: currentItem.id,
+              title: currentItem.title,
+              groupTitle: currentItem.groupTitle || 'Canais Principais',
+              streamUrl: currentItem.streamUrl,
+              logoUrl: currentItem.logoUrl || '',
+              category: currentItem.category || 'live'
+            });
+          }
+          currentItem = {};
+        }
+      }
+    }
+    return items;
+  };
+
+  // Remote M3U URL cache
+  const remoteM3uCache = new Map<string, { items: any[]; fetchedAt: number }>();
+
+  // Async helper to get active channels list, including fetching remote M3U URLs
+  const getAllSyncedItemsAsync = async (): Promise<{ items: any[]; categoriesMap: Map<string, string>; categoriesList: { category_id: string; category_name: string; parent_id: number }[] }> => {
+    // If syncedPlaylists is empty, try loading from disk cache
+    if (syncedPlaylists.length === 0) {
+      for (const file of SYNC_CACHE_FILES) {
+        try {
+          if (fs.existsSync(file)) {
+            const raw = fs.readFileSync(file, 'utf-8');
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.playlists)) syncedPlaylists = parsed.playlists;
+            if (Array.isArray(parsed.customers)) syncedCustomers = parsed.customers;
+          }
+        } catch (e) {}
+      }
+    }
+
     let allItems: any[] = [];
-    syncedPlaylists.forEach(pl => {
+
+    for (const pl of syncedPlaylists) {
       if (Array.isArray(pl.items) && pl.items.length > 0) {
         allItems.push(...pl.items);
+      } else if (pl.m3uUrl && typeof pl.m3uUrl === 'string') {
+        // Fetch remote M3U playlist if items array is empty
+        const cache = remoteM3uCache.get(pl.m3uUrl);
+        const now = Date.now();
+        if (cache && (now - cache.fetchedAt) < 600000) { // 10 minutes cache
+          allItems.push(...cache.items);
+        } else {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 8000);
+            const response = await fetch(pl.m3uUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+
+            if (response.ok) {
+              const text = await response.text();
+              const parsedItems = parseM3UText(text);
+              if (parsedItems.length > 0) {
+                remoteM3uCache.set(pl.m3uUrl, { items: parsedItems, fetchedAt: now });
+                allItems.push(...parsedItems);
+                pl.items = parsedItems; // cache back into memory
+                saveSyncedCache();
+              }
+            }
+          } catch (err) {
+            console.warn(`[StreamFlow] Error fetching remote M3U URL ${pl.m3uUrl}:`, err);
+            if (cache) allItems.push(...cache.items);
+          }
+        }
       }
-    });
+    }
 
     const categoriesMap = new Map<string, string>();
     const categoriesList: { category_id: string; category_name: string; parent_id: number }[] = [];
@@ -102,8 +238,8 @@ async function startServer() {
   };
 
   // M3U Playlist Generator Helper using dynamic synced items
-  const buildM3uPlaylist = (username: string, password: string, baseUrl: string): string => {
-    const { items } = getAllSyncedItems();
+  const buildM3uPlaylist = async (username: string, password: string, baseUrl: string): Promise<string> => {
+    const { items } = await getAllSyncedItemsAsync();
     let m3u = `#EXTM3U x-tvg-url="${baseUrl}/epg.xml.gz"\n\n`;
 
     items.forEach((item, idx) => {
@@ -118,7 +254,7 @@ async function startServer() {
   };
 
   // Xtream M3U Endpoint: /get.php (GET & POST)
-  app.all('/get.php', (req: Request, res: Response) => {
+  app.all('/get.php', async (req: Request, res: Response) => {
     const username = (req.query.username || req.body?.username || 'demo') as string;
     const password = (req.query.password || req.body?.password || 'demo') as string;
     const baseUrl = resolveBaseDns(req);
@@ -127,7 +263,7 @@ async function startServer() {
     res.setHeader('Content-Disposition', `attachment; filename="${username}.m3u"`);
     res.setHeader('Access-Control-Allow-Origin', '*');
 
-    const m3uContent = buildM3uPlaylist(username, password, baseUrl);
+    const m3uContent = await buildM3uPlaylist(username, password, baseUrl);
     res.send(m3uContent);
   });
 
@@ -167,17 +303,18 @@ async function startServer() {
       } catch (err: any) {
         console.error('Erro no proxy M3U remoto:', err);
         // Fallback to dynamic local M3U playlist
-        return res.send(buildM3uPlaylist(username, password, baseUrl));
+        const fallbackM3u = await buildM3uPlaylist(username, password, baseUrl);
+        return res.send(fallbackM3u);
       }
     }
 
     // Default dynamic playlist generated with system DNS URL
-    const m3uContent = buildM3uPlaylist(username, password, baseUrl);
+    const m3uContent = await buildM3uPlaylist(username, password, baseUrl);
     res.send(m3uContent);
   });
 
   // Xtream Codes Player API compatibility Endpoint for XCIPTV, Android ExoPlayer & Smart TV Apps
-  app.all('/player_api.php', (req: Request, res: Response) => {
+  app.all('/player_api.php', async (req: Request, res: Response) => {
     const username = (req.query.username || req.body?.username || 'usuario') as string;
     const password = (req.query.password || req.body?.password || 'senha') as string;
     const action = (req.query.action || req.body?.action || '') as string;
@@ -185,7 +322,7 @@ async function startServer() {
     const host = req.headers.host || 'localhost:3000';
     const protocol = req.protocol || 'http';
 
-    const { items, categoriesMap, categoriesList } = getAllSyncedItems();
+    const { items, categoriesMap, categoriesList } = await getAllSyncedItemsAsync();
 
     // 1. Live Categories for XCIPTV
     if (action === 'get_live_categories') {
@@ -327,19 +464,28 @@ async function startServer() {
       });
     }
 
+    // Check customer credentials from synced customers
+    const matchedCustomer = syncedCustomers.find((c: any) =>
+      c.username === username || c.email === username || c.id === username
+    );
+
     // Default Xtream Codes Login Response for XCIPTV authentication check
     return res.json({
       user_info: {
         username: username || 'usuario',
         password: password || 'senha',
-        message: 'Autenticação realizada com sucesso - StreamFlow Server',
+        message: matchedCustomer
+          ? `Autenticação bem sucedida. Cliente: ${matchedCustomer.name || username}`
+          : 'Autenticação realizada com sucesso - StreamFlow Server',
         auth: 1,
-        status: 'Active',
-        exp_date: '1786838400',
+        status: matchedCustomer?.status === 'inactive' ? 'Expired' : 'Active',
+        exp_date: matchedCustomer?.expirationDate
+          ? String(Math.floor(new Date(matchedCustomer.expirationDate).getTime() / 1000))
+          : '1786838400',
         is_trial: '0',
         active_cons: '1',
         created_at: '1672531200',
-        max_connections: '5',
+        max_connections: matchedCustomer?.maxConnections ? String(matchedCustomer.maxConnections) : '5',
         allowed_output_formats: ['m3u8', 'ts', 'rtmp', 'mp4', 'mkv']
       },
       server_info: {
@@ -372,11 +518,11 @@ async function startServer() {
   });
 
   // Stream Player Proxy / Redirect endpoints for XCIPTV video playback
-  app.all(['/live/:user/:pass/:id', '/live/:id'], (req: Request, res: Response) => {
+  app.all(['/live/:user/:pass/:id', '/live/:id'], async (req: Request, res: Response) => {
     const rawId = req.params.id || '';
     const cleanId = rawId.replace(/\.(m3u8|ts|mp4|mkv)$/i, '');
     const numId = parseInt(cleanId, 10);
-    const { items } = getAllSyncedItems();
+    const { items } = await getAllSyncedItemsAsync();
 
     if (!isNaN(numId)) {
       const index = numId >= 100 ? numId - 100 : numId - 1;
@@ -393,11 +539,11 @@ async function startServer() {
     return res.status(404).send('Canal ao vivo não encontrado ou sem canais cadastrados.');
   });
 
-  app.all(['/movie/:user/:pass/:id', '/movie/:id', '/series/:user/:pass/:id', '/series/:id'], (req: Request, res: Response) => {
+  app.all(['/movie/:user/:pass/:id', '/movie/:id', '/series/:user/:pass/:id', '/series/:id'], async (req: Request, res: Response) => {
     const rawId = req.params.id || '';
     const cleanId = rawId.replace(/\.(m3u8|ts|mp4|mkv)$/i, '');
     const numId = parseInt(cleanId, 10);
-    const { items } = getAllSyncedItems();
+    const { items } = await getAllSyncedItemsAsync();
 
     if (!isNaN(numId)) {
       const index = numId >= 200 ? numId - 200 : numId - 1;
